@@ -39,9 +39,14 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Mobile touch
-document.addEventListener("touchstart", () => {
-  jump();
-});
+document.addEventListener(
+  "touchstart",
+  (e) => {
+    e.preventDefault();
+    jump();
+  },
+  { passive: false }
+);
 
 // Update physics
 function update() {

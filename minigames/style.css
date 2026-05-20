@@ -8,4 +8,5 @@ canvas {
   display: block;
   margin: auto;
   background: #111;
+  touch-action: none;
 }
