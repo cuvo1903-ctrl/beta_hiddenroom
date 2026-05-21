@@ -712,9 +712,9 @@ const Collision = {
 ---------------------------------------------------------------- */
 const COUPON_MESSAGES = [
   '★ UN PUTÍSIMO CUPÓN PA HIDDEN\nmándanos captura para canjearlo',
-  '★ SECRETO DESBLOQUEADO\npremio dem00nz llegando',
+  '★ SECRETO DESBLOQUEADO\nmandanos ss para canjearlo',
   '★ DROP EXTRAÑO\nparece un cupón we',
-  '★ 2x1\n2x1 pa la siguiente jaiden',
+  '★ 2x1\n2x1 pa la jaiden válida (mándanos ss)',
 ];
 
 const CouponSystem = {
@@ -853,7 +853,7 @@ const Screens = {
     this.goScore.textContent = GS.score;
     this.goBest.textContent  = GS.best;
     this.goCoupons.textContent = GS.couponsEarned
-      ? `★ COUPONS EARNED: ${GS.couponsEarned}`
+      ? `★ CUPONES CONSEGUIDOS (mandanos ss a wpp): ${GS.couponsEarned}`
       : '';
     this.gameOver.classList.remove('hidden');
     this.start.classList.add('hidden');
