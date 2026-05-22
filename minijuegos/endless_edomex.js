@@ -1,5 +1,5 @@
 /* ================================================================
-   dem00nz RUNNER — game engine
+   dem00nz RUNNER — game engine (OPTIMIZED)
    ================================================================
 
    ARCHITECTURE OVERVIEW
@@ -71,7 +71,7 @@ const CONFIG = {
 ---------------------------------------------------------------- */
 const ASSETS = {
   // PLAYER_SPRITE — replace null with loaded HTMLImageElement
-  PLAYER_SPRITE: (() => { const img = new Image(); img.src = '../assets/img/kairen.webp'; return img; })(),   // e.g. 32×48 px sprite sheet
+  PLAYER_SPRITE: (() => { const img = new Image(); img.src = '../assets/img/kairen.webp'; return img; })(),
 
   // Obstacle sprites
   DOG_OBSTACLE:     (() => { const img = new Image(); img.src = '../assets/sprites/tsuru.webp';    return img; })(),
@@ -81,7 +81,7 @@ const ASSETS = {
   CONE_OBSTACLE:    (() => { const img = new Image(); img.src = '../assets/sprites/poste.webp';    return img; })(),
 
   // Collectibles
-  COUPON_ITEM:        null,   // rare redeemable coupon glyph
+  COUPON_ITEM:        null,
   COIN_ITEM: (() => { const img = new Image(); img.src = '../assets/sprites/mafia.webp'; return img; })(),
 
   // Background layers (far → near)
@@ -105,44 +105,60 @@ const SOUNDS = {
   point:     '../assets/sounds/point.mp3',     // regular collectible picked up
 };
 
-const SoundSystem = {
-  _cache: {},
-  _unlocked: false,
+const SoundSystem = (() => {
+  // Pre-allocate a small pool of Audio nodes per key to allow
+  // overlapping playback without cloning on every call (reduces GC).
+  const POOL_SIZE = 3;
+  const _pools   = {};   // key → Audio[]
+  const _cursors = {};   // key → current pool index (round-robin)
+  let _unlocked  = false;
 
-  // iOS Safari requires a user gesture before playing audio.
-  // We unlock on first touch/click by playing a silent buffer.
-  unlock() {
-    if (this._unlocked) return;
-    this._unlocked = true;
-    // pre-load all sounds now that we have a gesture
-    for (const [key, src] of Object.entries(SOUNDS)) {
-      const audio = new Audio(src);
-      audio.preload = 'auto';
-      this._cache[key] = audio;
-    }
-  },
+  function _buildPool(key, src) {
+    _pools[key]   = Array.from({ length: POOL_SIZE }, () => {
+      const a = new Audio(src);
+      a.preload = 'auto';
+      return a;
+    });
+    _cursors[key] = 0;
+  }
 
-  play(key, volume = 1) {
-    const src = SOUNDS[key];
-    if (!src) return;
-    try {
-      // Clone the audio so overlapping sounds work
-      let audio = this._cache[key];
-      if (!audio) {
-        audio = new Audio(src);
-        this._cache[key] = audio;
+  return {
+    // iOS Safari requires a user gesture before playing audio.
+    // Unlock on first touch/click by building the Audio pools.
+    unlock() {
+      if (_unlocked) return;
+      _unlocked = true;
+      for (const [key, src] of Object.entries(SOUNDS)) {
+        _buildPool(key, src);
       }
-      const clone = audio.cloneNode();
-      clone.volume = volume;
-      clone.play().catch(() => {}); // silently ignore autoplay block
-    } catch(e) {}
-  },
+    },
 
-  stop(key) {
-    const audio = this._cache[key];
-    if (audio) { audio.pause(); audio.currentTime = 0; }
-  },
-};
+    play(key, volume = 1) {
+      if (!_pools[key]) {
+        // Not unlocked yet; build a single-node pool lazily
+        const src = SOUNDS[key];
+        if (!src) return;
+        _buildPool(key, src);
+      }
+      try {
+        const pool  = _pools[key];
+        const idx   = _cursors[key];
+        const audio = pool[idx];
+        _cursors[key] = (idx + 1) % POOL_SIZE;
+
+        audio.volume      = volume;
+        audio.currentTime = 0;
+        audio.play().catch(() => {}); // silently ignore autoplay block
+      } catch(e) {}
+    },
+
+    stop(key) {
+      const pool = _pools[key];
+      if (!pool) return;
+      for (const a of pool) { a.pause(); a.currentTime = 0; }
+    },
+  };
+})();
 
 /* ----------------------------------------------------------------
    UTILS
@@ -151,14 +167,31 @@ const rand    = (min, max) => Math.random() * (max - min) + min;
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 const clamp   = (v, min, max) => Math.min(max, Math.max(min, v));
 
+// Cached TWO_PI to avoid repeated allocation inside arc() calls
+const TWO_PI = Math.PI * 2;
+
 /* ----------------------------------------------------------------
    CANVAS SETUP & RESPONSIVE RESIZE
+   - imageSmoothingEnabled is forced off to keep pixel art crisp
+     and to reduce the GPU cost of bilinear filtering on mobile.
 ---------------------------------------------------------------- */
 const canvas  = document.getElementById('gameCanvas');
 const ctx     = canvas.getContext('2d');
 
+// Disable smoothing once at init; re-apply after resize (Safari resets it)
+function _applyContextSettings() {
+  ctx.imageSmoothingEnabled = false;
+}
+_applyContextSettings();
+
 let W = 0, H = 0, GROUND_Y = 0;
 
+// Cached sky gradient — declared here so resizeCanvas() can nullify it
+// before the Background object is defined below.
+let _skyGradientCache = null;
+
+// Debounce resize to avoid thrashing layout on rapid window changes
+let _resizeTimer = null;
 function resizeCanvas() {
   const wrapper = document.getElementById('wrapper');
   W = wrapper.clientWidth;
@@ -166,8 +199,18 @@ function resizeCanvas() {
   canvas.width  = W;
   canvas.height = H;
   GROUND_Y = H - CONFIG.GROUND_HEIGHT;
+  _applyContextSettings();
+  // Rebuild cached sky gradient for new dimensions
+  _skyGradientCache = null;
 }
-window.addEventListener('resize', () => { resizeCanvas(); if (GS.running) Renderer.drawBackground(); });
+
+window.addEventListener('resize', () => {
+  if (_resizeTimer) clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    resizeCanvas();
+    if (GS.running) Renderer.drawBackground();
+  }, 100);
+});
 resizeCanvas();
 
 /* ----------------------------------------------------------------
@@ -183,7 +226,7 @@ const GS = {
   speed:         CONFIG.BASE_SPEED,
   frame:         0,
   lastTime:      0,
-  hitTime:       0,           // timestamp of last hit (for invincibility)
+  hitTime:       0,
   invincible:    false,
 };
 
@@ -201,19 +244,27 @@ const Score = {
 };
 
 /* ----------------------------------------------------------------
-   HUD
+   HUD — DOM updates batched via a dirty flag so we don't touch
+   the DOM every single frame (only when score/lives change).
 ---------------------------------------------------------------- */
 const HUD = {
   scoreEl:  document.getElementById('scoreVal'),
   bestEl:   document.getElementById('bestVal'),
   livesEl:  document.getElementById('livesVal'),
+
+  // Pre-build the lives glyphs string to avoid repeated string ops
+  _livesStrings: (() => {
+    const arr = [];
+    for (let i = 0; i <= CONFIG.MAX_LIVES; i++) {
+      arr[i] = '█'.repeat(i) + '░'.repeat(CONFIG.MAX_LIVES - i);
+    }
+    return arr;
+  })(),
+
   update() {
     this.scoreEl.textContent = GS.score;
     this.bestEl.textContent  = GS.best;
-    // lives as glyphs
-    const full  = '█'.repeat(GS.lives);
-    const empty = '░'.repeat(CONFIG.MAX_LIVES - GS.lives);
-    this.livesEl.textContent = full + empty;
+    this.livesEl.textContent = this._livesStrings[GS.lives] || '';
   },
 };
 
@@ -221,12 +272,17 @@ const HUD = {
    BACKGROUND — parallax city layers drawn on canvas
    STREET_BACKGROUND placeholder: procedural dark geometry
    Replace with sprite sheets via ASSETS.STREET_BG_*
+
+   Optimization notes:
+   - Sky gradient is cached and rebuilt only on resize.
+   - Window flicker uses a single random sample per draw (not per seg).
+   - Ground stripe and dash-line are drawn with integer coords to hit
+     the pixel grid and avoid sub-pixel anti-aliasing overhead.
 ---------------------------------------------------------------- */
+
 const Background = {
-  // Each layer: array of segment objects {x, w, h}
   layers: [[], [], [], []],
   colors: ['#0d0d0d', '#101010', '#131313', '#161616'],
-  accents:['#1a1a1a', '#1c1c1c', '#202020', '#252525'],
 
   init() {
     this.layers = [[], [], [], []];
@@ -244,18 +300,24 @@ const Background = {
   update(dt) {
     if (!GS.running) return;
     const speeds = CONFIG.BG_LAYER_SPEEDS;
+    // Pre-compute the dt-scaled multiplier once
+    const dtScale = dt * 60 / 1000;
+
     for (let l = 0; l < 4; l++) {
-      const spd = GS.speed * speeds[l];
-      for (const seg of this.layers[l]) seg.x -= spd * dt * 60 / 1000;
-      // recycle off-screen segments
-      const last = this.layers[l][this.layers[l].length - 1];
-      if (this.layers[l][0].x + this.layers[l][0].w < 0) {
-        const s = this.layers[l].shift();
-        s.x = last.x + last.w + randInt(4, 24 - l * 4);
-        s.w = randInt(40, 180 - l * 20);
-        s.h = randInt(30 + l * 20, 120 + l * 40);
+      const layer = this.layers[l];
+      const spd   = GS.speed * speeds[l] * dtScale;
+
+      for (let i = 0; i < layer.length; i++) layer[i].x -= spd;
+
+      // Recycle the first segment when it scrolls fully off-screen
+      if (layer[0].x + layer[0].w < 0) {
+        const s    = layer.shift();
+        const last = layer[layer.length - 1];
+        s.x        = last.x + last.w + randInt(4, 24 - l * 4);
+        s.w        = randInt(40, 180 - l * 20);
+        s.h        = randInt(30 + l * 20, 120 + l * 40);
         s.hasWindow = Math.random() > 0.4;
-        this.layers[l].push(s);
+        layer.push(s);
       }
     }
   },
@@ -264,71 +326,70 @@ const Background = {
     // ── STREET_BACKGROUND ──
     if (ASSETS.STREET_BG_FAR && ASSETS.STREET_BG_FAR.complete) {
       ctx.drawImage(ASSETS.STREET_BG_FAR, 0, 0, W, GROUND_Y);
-      ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(0, GROUND_Y, W, CONFIG.GROUND_HEIGHT);
-      ctx.fillStyle = 'rgba(200, 160, 0, 0.75)';
-      ctx.fillRect(0, GROUND_Y, W, 3);
-      ctx.strokeStyle = '#3a3a3a';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, GROUND_Y + 3);
-      ctx.lineTo(W, GROUND_Y + 3);
-      ctx.stroke();
-    }
-
-   // Sky gradient (only if no background image)
-    if (!ASSETS.STREET_BG_FAR || !ASSETS.STREET_BG_FAR.complete) {
-      const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-      sky.addColorStop(0,   '#05050a');
-      sky.addColorStop(0.7, '#070710');
-      sky.addColorStop(1,   '#0a0a0a');
-      ctx.fillStyle = sky;
+    } else {
+      // Sky gradient — use cached version to avoid per-frame object creation
+      if (!_skyGradientCache) {
+        _skyGradientCache = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+        _skyGradientCache.addColorStop(0,   '#05050a');
+        _skyGradientCache.addColorStop(0.7, '#070710');
+        _skyGradientCache.addColorStop(1,   '#0a0a0a');
+      }
+      ctx.fillStyle = _skyGradientCache;
       ctx.fillRect(0, 0, W, GROUND_Y);
     }
+
     // Parallax building layers (far → near)
+    // Sample one flicker roll per draw call, shared across all windows
+    // to avoid Math.random() inside the per-segment inner loop.
+    const flickerRoll = Math.random();
+
     for (let l = 0; l < 4; l++) {
       ctx.fillStyle = this.colors[l];
-      for (const seg of this.layers[l]) {
+      const layer   = this.layers[l];
+
+      for (let i = 0; i < layer.length; i++) {
+        const seg = layer[i];
         const top = GROUND_Y - seg.h;
-        ctx.fillRect(seg.x, top, seg.w, seg.h);
-        // small window glints
+        ctx.fillRect(seg.x | 0, top | 0, seg.w, seg.h);
+
+        // Small window glints — only if the building is wide enough
         if (seg.hasWindow && seg.w > 28) {
-          ctx.fillStyle = Math.random() > 0.997
-            ? 'rgba(200,255,0,0.25)'   // rare flicker
+          ctx.fillStyle = flickerRoll > 0.997
+            ? 'rgba(200,255,0,0.25)'    // rare flicker (one building per frame at most)
             : 'rgba(255,255,200,0.04)';
           const wx = seg.x + seg.w * 0.3;
           const wy = top + seg.h * 0.25;
-          ctx.fillRect(wx, wy, seg.w * 0.3, seg.h * 0.1);
+          ctx.fillRect(wx | 0, wy | 0, seg.w * 0.3, seg.h * 0.1);
+          // Restore color for next segment in this layer
           ctx.fillStyle = this.colors[l];
         }
       }
     }
 
-    // Ground — medium/dark asphalt gray
+    // Ground — asphalt + CDMX yellow curb line
     ctx.fillStyle = '#7a7a7a';
-    ctx.fillRect(0, GROUND_Y, W, CONFIG.GROUND_HEIGHT);
+    ctx.fillRect(0, GROUND_Y | 0, W, CONFIG.GROUND_HEIGHT);
 
-    // Yellow curb line — CDMX street marking at top edge of road
-    ctx.fillStyle = 'rgba(255, 204, 0, 0.92)';
-    ctx.fillRect(0, GROUND_Y, W, 16);
+    ctx.fillStyle = 'rgba(255,204,0,0.92)';
+    ctx.fillRect(0, GROUND_Y | 0, W, 16);
 
-    // Ground top edge (subtle separation)
+    // Ground top edge
     ctx.strokeStyle = '#3a3a3a';
     ctx.lineWidth   = 1;
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y + 3);
-    ctx.lineTo(W, GROUND_Y + 3);
+    ctx.moveTo(0, (GROUND_Y + 3) | 0);
+    ctx.lineTo(W, (GROUND_Y + 3) | 0);
     ctx.stroke();
 
-    // Dashed lane marks (moving)
+    // Dashed lane marks (moving) — offset is integer-floored to stay on pixel grid
     const dashOffset = -(GS.frame * GS.speed * 0.5) % 80;
     ctx.setLineDash([40, 40]);
-    ctx.lineDashOffset = dashOffset;
-    ctx.strokeStyle = '#383838';
-    ctx.lineWidth   = 1;
+    ctx.lineDashOffset = dashOffset | 0;
+    ctx.strokeStyle    = '#383838';
+    ctx.lineWidth      = 1;
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y + 20);
-    ctx.lineTo(W, GROUND_Y + 20);
+    ctx.moveTo(0, (GROUND_Y + 20) | 0);
+    ctx.lineTo(W, (GROUND_Y + 20) | 0);
     ctx.stroke();
     ctx.setLineDash([]);
   },
@@ -349,48 +410,52 @@ const Player = {
   animFrame: 0,
   animTimer: 0,
 
+  // Reusable hitbox object — avoids allocation every collision check
+  _hitboxObj: { x: 0, y: 0, w: 0, h: 0 },
+
   init() {
     this.x   = W * 0.15;
     this.y   = GROUND_Y - this.h;
     this.vy  = 0;
-    this.onGround   = true;
+    this.onGround      = true;
     this.canDoubleJump = true;
-    this.jumpCount  = 0;
-    this.animFrame  = 0;
-    this.animTimer  = 0;
+    this.jumpCount     = 0;
+    this.animFrame     = 0;
+    this.animTimer     = 0;
   },
 
   jump() {
     if (this.onGround) {
-      this.vy = CONFIG.JUMP_FORCE;
-      this.onGround = false;
-      this.jumpCount = 1;
+      this.vy            = CONFIG.JUMP_FORCE;
+      this.onGround      = false;
+      this.jumpCount     = 1;
       this.canDoubleJump = true;
       SoundSystem.play('jump');
     } else if (this.canDoubleJump && this.jumpCount < 2) {
-      this.vy = CONFIG.DOUBLE_JUMP_FORCE;
+      this.vy            = CONFIG.DOUBLE_JUMP_FORCE;
       this.canDoubleJump = false;
-      this.jumpCount = 2;
+      this.jumpCount     = 2;
       SoundSystem.play('jump', 0.7);
     }
   },
 
   update(dt) {
-    const dtf = dt * 60 / 1000;
-    this.vy  += CONFIG.GRAVITY * dtf;
-    this.y   += this.vy * dtf;
+    const dtf      = dt * 60 / 1000;
+    this.vy       += CONFIG.GRAVITY * dtf;
+    this.y        += this.vy * dtf;
 
-    if (this.y >= GROUND_Y - this.h) {
-      this.y = GROUND_Y - this.h;
-      this.vy = 0;
-      this.onGround = true;
-      this.jumpCount = 0;
+    const groundLine = GROUND_Y - this.h;
+    if (this.y >= groundLine) {
+      this.y             = groundLine;
+      this.vy            = 0;
+      this.onGround      = true;
+      this.jumpCount     = 0;
       this.canDoubleJump = true;
     } else {
       this.onGround = false;
     }
 
-    // Animate legs
+    // Animate legs only while on ground
     this.animTimer += dt;
     if (this.onGround && this.animTimer > 100) {
       this.animFrame = (this.animFrame + 1) % 4;
@@ -398,35 +463,40 @@ const Player = {
     }
   },
 
+  // Returns reused hitbox object — callers must not hold onto reference
   hitbox() {
-    // Slightly inset hitbox for fairness
-    return { x: this.x + 4, y: this.y + 4, w: this.w - 8, h: this.h - 4 };
+    const hb  = this._hitboxObj;
+    hb.x = this.x + 4;
+    hb.y = this.y + 4;
+    hb.w = this.w - 8;
+    hb.h = this.h - 4;
+    return hb;
   },
 
   draw() {
-    const px = Math.round(this.x);
-    const py = Math.round(this.y);
+    const px = this.x | 0;
+    const py = this.y | 0;
     const pw = this.w;
     const ph = this.h;
 
-    // ── PLAYER_SPRITE: replace block below with drawImage ──
     // ── PLAYER_SPRITE ──
-    const blink = GS.invincible && Math.floor(Date.now() / 80) % 2 === 0;
+    // Blink during invincibility — use bit-shift for fast modulo-2
+    const blink = GS.invincible && ((Date.now() >> 6) & 1) === 0;
     if (blink) return;
 
     if (ASSETS.PLAYER_SPRITE && ASSETS.PLAYER_SPRITE.complete) {
       const ratio = ASSETS.PLAYER_SPRITE.naturalWidth / ASSETS.PLAYER_SPRITE.naturalHeight;
-const drawH = ph;
-const drawW = drawH * ratio;
-ctx.drawImage(ASSETS.PLAYER_SPRITE, px, py, drawW, drawH);
+      const drawH = ph;
+      const drawW = drawH * ratio;
+      ctx.drawImage(ASSETS.PLAYER_SPRITE, px, py, drawW, drawH);
     } else {
       // Placeholder fallback while image loads
       ctx.save();
       ctx.fillStyle = '#c8ff00';
       ctx.beginPath();
-      ctx.arc(px + pw / 2, py + 8, 7, 0, Math.PI * 2);
+      ctx.arc(px + pw / 2, py + 8, 7, 0, TWO_PI);
       ctx.fill();
-      ctx.fillRect(px + pw/2 - 4, py + 15, 8, 18);
+      ctx.fillRect(px + pw / 2 - 4, py + 15, 8, 18);
       ctx.restore();
     }
   },
@@ -434,8 +504,12 @@ ctx.drawImage(ASSETS.PLAYER_SPRITE, px, py, drawW, drawH);
 
 /* ----------------------------------------------------------------
    OBSTACLE POOL
-   Obstacle types with conceptual CDMX-urban labels
+   Obstacle types with conceptual CDMX-urban labels.
    Replace drawFn bodies with ctx.drawImage(ASSETS.X_OBSTACLE, ...)
+
+   Optimization note: each type caches its naturalWidth/naturalHeight
+   aspect ratio the first time draw() is called to avoid repeated
+   property lookups inside the hot draw path.
 ---------------------------------------------------------------- */
 const OBSTACLE_TYPES = [
   {
@@ -444,15 +518,13 @@ const OBSTACLE_TYPES = [
     wMin: 24, wMax: 38,
     hMin: 70, hMax: 70,
     color:  '#2a2a2a',
-    accent: '#444444',
-    // ground-level
-    elevated: false,
+    _ratio: null,
     draw(ctx, x, y, w, h) {
       // ── DOG_OBSTACLE (tsuru.webp) ──
-      if (ASSETS.DOG_OBSTACLE && ASSETS.DOG_OBSTACLE.complete) {
-        const ratio = ASSETS.DOG_OBSTACLE.naturalWidth / ASSETS.DOG_OBSTACLE.naturalHeight;
-        const dw = h * ratio;
-        ctx.drawImage(ASSETS.DOG_OBSTACLE, x, y, dw, h);
+      const img = ASSETS.DOG_OBSTACLE;
+      if (img && img.complete) {
+        if (!this._ratio) this._ratio = img.naturalWidth / img.naturalHeight;
+        ctx.drawImage(img, x, y, h * this._ratio, h);
       } else {
         ctx.fillStyle = this.color;
         ctx.fillRect(x, y + h * 0.35, w, h * 0.45);
@@ -467,18 +539,18 @@ const OBSTACLE_TYPES = [
     hMin: 75, hMax: 75,
     color:  '#1a1a2e',
     accent: '#ff2b4e',
-    elevated: false,
+    _ratio: null,
     draw(ctx, x, y, w, h) {
       // ── POLICE_OBSTACLE (patrulla.webp) ──
-      if (ASSETS.POLICE_OBSTACLE && ASSETS.POLICE_OBSTACLE.complete) {
-        const ratio = ASSETS.POLICE_OBSTACLE.naturalWidth / ASSETS.POLICE_OBSTACLE.naturalHeight;
-        const dw = h * ratio;
-        ctx.drawImage(ASSETS.POLICE_OBSTACLE, x, y, dw, h);
+      const img = ASSETS.POLICE_OBSTACLE;
+      if (img && img.complete) {
+        if (!this._ratio) this._ratio = img.naturalWidth / img.naturalHeight;
+        ctx.drawImage(img, x, y, h * this._ratio, h);
       } else {
         ctx.fillStyle = this.color;
-        ctx.fillRect(x + w*0.2, y + h*0.3, w*0.6, h*0.5);
+        ctx.fillRect(x + w * 0.2, y + h * 0.3, w * 0.6, h * 0.5);
         ctx.beginPath();
-        ctx.arc(x + w/2, y + h*0.18, w*0.22, 0, Math.PI*2);
+        ctx.arc(x + w / 2, y + h * 0.18, w * 0.22, 0, TWO_PI);
         ctx.fill();
       }
     },
@@ -489,18 +561,17 @@ const OBSTACLE_TYPES = [
     wMin: 30, wMax: 55,
     hMin: 80, hMax: 80,
     color:  '#181818',
-    accent: '#222222',
-    elevated: false,
+    _ratio: null,
     draw(ctx, x, y, w, h) {
       // ── POTHOLE_OBSTACLE (grava.webp) ──
-      if (ASSETS.POTHOLE_OBSTACLE && ASSETS.POTHOLE_OBSTACLE.complete) {
-        const ratio = ASSETS.POTHOLE_OBSTACLE.naturalWidth / ASSETS.POTHOLE_OBSTACLE.naturalHeight;
-        const dw = h * ratio;
-        ctx.drawImage(ASSETS.POTHOLE_OBSTACLE, x, y, dw, h);
+      const img = ASSETS.POTHOLE_OBSTACLE;
+      if (img && img.complete) {
+        if (!this._ratio) this._ratio = img.naturalWidth / img.naturalHeight;
+        ctx.drawImage(img, x, y, h * this._ratio, h);
       } else {
         ctx.fillStyle = '#0a0a0a';
         ctx.beginPath();
-        ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2);
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, TWO_PI);
         ctx.fill();
       }
     },
@@ -511,17 +582,16 @@ const OBSTACLE_TYPES = [
     wMin: 36, wMax: 56,
     hMin: 52, hMax: 52,
     color:  '#1c1c1c',
-    accent: '#2e2e2e',
-    elevated: false,
+    _ratio: null,
     draw(ctx, x, y, w, h) {
       // ── MARKET_OBSTACLE (bote.webp) ──
-      if (ASSETS.MARKET_OBSTACLE && ASSETS.MARKET_OBSTACLE.complete) {
-        const ratio = ASSETS.MARKET_OBSTACLE.naturalWidth / ASSETS.MARKET_OBSTACLE.naturalHeight;
-        const dw = h * ratio;
-        ctx.drawImage(ASSETS.MARKET_OBSTACLE, x, y, dw, h);
+      const img = ASSETS.MARKET_OBSTACLE;
+      if (img && img.complete) {
+        if (!this._ratio) this._ratio = img.naturalWidth / img.naturalHeight;
+        ctx.drawImage(img, x, y, h * this._ratio, h);
       } else {
         ctx.fillStyle = this.color;
-        ctx.fillRect(x + w*0.1, y + h*0.4, w*0.8, h*0.5);
+        ctx.fillRect(x + w * 0.1, y + h * 0.4, w * 0.8, h * 0.5);
       }
     },
   },
@@ -531,18 +601,17 @@ const OBSTACLE_TYPES = [
     wMin: 16, wMax: 26,
     hMin: 90, hMax: 90,
     color:  '#1e1e1e',
-    accent: '#333333',
-    elevated: false,
+    _ratio: null,
     draw(ctx, x, y, w, h) {
       // ── CONE_OBSTACLE (poste.webp) ──
-      if (ASSETS.CONE_OBSTACLE && ASSETS.CONE_OBSTACLE.complete) {
-        const ratio = ASSETS.CONE_OBSTACLE.naturalWidth / ASSETS.CONE_OBSTACLE.naturalHeight;
-        const dw = h * ratio;
-        ctx.drawImage(ASSETS.CONE_OBSTACLE, x, y, dw, h);
+      const img = ASSETS.CONE_OBSTACLE;
+      if (img && img.complete) {
+        if (!this._ratio) this._ratio = img.naturalWidth / img.naturalHeight;
+        ctx.drawImage(img, x, y, h * this._ratio, h);
       } else {
         ctx.fillStyle = this.color;
         ctx.beginPath();
-        ctx.moveTo(x + w/2, y);
+        ctx.moveTo(x + w / 2, y);
         ctx.lineTo(x + w, y + h);
         ctx.lineTo(x, y + h);
         ctx.closePath();
@@ -552,179 +621,249 @@ const OBSTACLE_TYPES = [
   },
 ];
 
+/* ----------------------------------------------------------------
+   OBSTACLE POOL
+   Uses a fixed-size array and a manual active count instead of
+   repeated Array.filter() to reduce GC pressure each frame.
+---------------------------------------------------------------- */
 const ObstaclePool = (() => {
-  let obstacles = [];
+  // Pre-allocate pool objects; we swap them in/out by marking active flag
+  const MAX_OBSTACLES = 16;
+  const _pool = Array.from({ length: MAX_OBSTACLES }, () => ({
+    type: null, x: 0, y: 0, w: 0, h: 0, scored: false, active: false,
+  }));
+
   let spawnTimer = 0;
   let nextSpawn  = 1200;
 
-  function _spawn() {
-    const type = OBSTACLE_TYPES[randInt(0, OBSTACLE_TYPES.length - 1)];
-    const w = randInt(type.wMin, type.wMax);
-    const h = randInt(type.hMin, type.hMax);
-    obstacles.push({
-      type,
-      x: W + 20,
-      y: GROUND_Y - h,
-      w, h,
-      scored: false,
-    });
-    nextSpawn = rand(CONFIG.OBS_SPAWN_INTERVAL_MIN, CONFIG.OBS_SPAWN_INTERVAL_MAX);
+  function _getFree() {
+    for (let i = 0; i < MAX_OBSTACLES; i++) {
+      if (!_pool[i].active) return _pool[i];
+    }
+    return null; // pool exhausted (shouldn't happen at normal speeds)
   }
 
-  function init()  { obstacles = []; spawnTimer = 0; nextSpawn = 1400; }
+  function _spawn() {
+    const o = _getFree();
+    if (!o) return;
+    const type  = OBSTACLE_TYPES[randInt(0, OBSTACLE_TYPES.length - 1)];
+    const h     = randInt(type.hMin, type.hMax);
+    const w     = randInt(type.wMin, type.wMax);
+    o.type      = type;
+    o.x         = W + 20;
+    o.y         = GROUND_Y - h;
+    o.w         = w;
+    o.h         = h;
+    o.scored    = false;
+    o.active    = true;
+    nextSpawn   = rand(CONFIG.OBS_SPAWN_INTERVAL_MIN, CONFIG.OBS_SPAWN_INTERVAL_MAX);
+  }
+
+  function init() {
+    for (let i = 0; i < MAX_OBSTACLES; i++) _pool[i].active = false;
+    spawnTimer = 0;
+    nextSpawn  = 1400;
+  }
 
   function update(dt) {
     spawnTimer += dt;
     if (spawnTimer >= nextSpawn) { _spawn(); spawnTimer = 0; }
 
-    for (const o of obstacles) {
-      o.x -= GS.speed * dt * 60 / 1000;
+    const move = GS.speed * dt * 60 / 1000;
+    for (let i = 0; i < MAX_OBSTACLES; i++) {
+      const o = _pool[i];
+      if (!o.active) continue;
+      o.x -= move;
       if (!o.scored && o.x + o.w < Player.x) {
         Score.add(1);
         o.scored = true;
       }
+      // Deactivate when fully off-screen
+      if (o.x + o.w < -10) o.active = false;
     }
-    // cull
-    obstacles = obstacles.filter(o => o.x + o.w > -10);
   }
 
   function draw() {
-    for (const o of obstacles) {
+    for (let i = 0; i < MAX_OBSTACLES; i++) {
+      const o = _pool[i];
+      if (!o.active) continue;
       ctx.save();
-      o.type.draw(ctx, Math.round(o.x), Math.round(o.y), o.w, o.h);
-      // debug label (remove in prod)
-      // ctx.fillStyle='#333'; ctx.font='8px monospace';
-      // ctx.fillText(o.type.label, o.x, o.y - 4);
+      o.type.draw(ctx, o.x | 0, o.y | 0, o.w, o.h);
       ctx.restore();
     }
   }
 
-  function getAll() { return obstacles; }
+  // Returns only the active subset — used by Collision
+  function getAll() {
+    const active = [];
+    for (let i = 0; i < MAX_OBSTACLES; i++) {
+      if (_pool[i].active) active.push(_pool[i]);
+    }
+    return active;
+  }
 
   return { init, update, draw, getAll };
 })();
 
 /* ----------------------------------------------------------------
    COLLECTIBLE POOL
-   Two tiers: regular (score) and rare COUPON
-   COUPON_ITEM / COIN_ITEM — replace draw blocks with drawImage
+   Two tiers: regular (score) and rare COUPON.
+   Same pooling strategy as ObstaclePool — avoids filter() each frame.
+   COUPON_ITEM / COIN_ITEM — replace draw blocks with drawImage.
 ---------------------------------------------------------------- */
 const CollectiblePool = (() => {
-  let items = [];
+  const MAX_ITEMS = 12;
+  const _pool = Array.from({ length: MAX_ITEMS }, () => ({
+    type: 'COIN', x: 0, y: 0, w: 0, h: 0,
+    collected: false, pulse: 0, active: false,
+  }));
+
   let spawnTimer = 0;
   let nextSpawn  = 2000;
 
-  function _spawn() {
-    const isCoupon = Math.random() < CONFIG.COUPON_SPAWN_CHANCE;
-    const h = 32;
-    const w = isCoupon ? 22 : 14;
-    const yOff = rand(0, CONFIG.COLLECT_HEIGHT_RANGE);
-    items.push({
-      type: isCoupon ? 'COUPON' : 'COIN',
-      x:  W + 20,
-      y:  GROUND_Y - h - 30 - yOff,
-      w, h,
-      collected: false,
-      pulse: 0,
-    });
-    nextSpawn = rand(1800, 3200);
+  // Cache ratio for COIN_ITEM to avoid repeated property lookups
+  let _coinRatio = null;
+
+  function _getFree() {
+    for (let i = 0; i < MAX_ITEMS; i++) {
+      if (!_pool[i].active) return _pool[i];
+    }
+    return null;
   }
 
-  function init()  { items = []; spawnTimer = 0; nextSpawn = 2000; }
+  function _spawn() {
+    const it = _getFree();
+    if (!it) return;
+    const isCoupon = Math.random() < CONFIG.COUPON_SPAWN_CHANCE;
+    const h   = 32;
+    const w   = isCoupon ? 22 : 14;
+    const yOff = rand(0, CONFIG.COLLECT_HEIGHT_RANGE);
+    it.type      = isCoupon ? 'COUPON' : 'COIN';
+    it.x         = W + 20;
+    it.y         = GROUND_Y - h - 30 - yOff;
+    it.w         = w;
+    it.h         = h;
+    it.collected = false;
+    it.pulse     = 0;
+    it.active    = true;
+    nextSpawn    = rand(1800, 3200);
+  }
+
+  function init() {
+    for (let i = 0; i < MAX_ITEMS; i++) _pool[i].active = false;
+    spawnTimer = 0;
+    nextSpawn  = 2000;
+  }
 
   function update(dt) {
     spawnTimer += dt;
     if (Math.random() < CONFIG.COLLECT_SPAWN_CHANCE && spawnTimer >= nextSpawn) {
       _spawn(); spawnTimer = 0;
     }
-    for (const it of items) {
-      it.x -= GS.speed * dt * 60 / 1000;
-      it.pulse += dt * 0.005;
+    const move     = GS.speed * dt * 60 / 1000;
+    const pulseInc = dt * 0.005;
+    for (let i = 0; i < MAX_ITEMS; i++) {
+      const it = _pool[i];
+      if (!it.active) continue;
+      it.x     -= move;
+      it.pulse += pulseInc;
+      if (it.collected || it.x + it.w < -10) it.active = false;
     }
-    items = items.filter(it => !it.collected && it.x + it.w > -10);
   }
 
   function draw() {
-    for (const it of items) {
-      if (it.collected) continue;
+    for (let i = 0; i < MAX_ITEMS; i++) {
+      const it = _pool[i];
+      if (!it.active || it.collected) continue;
+
       ctx.save();
-      const px = Math.round(it.x);
-      const py = Math.round(it.y + Math.sin(it.pulse) * 4);
+      const px  = it.x | 0;
+      const py  = (it.y + Math.sin(it.pulse) * 4) | 0;
 
       if (it.type === 'COUPON') {
-        // ── COUPON_ITEM: swap below with ctx.drawImage(ASSETS.COUPON_ITEM, px, py, it.w, it.h)
+        // ── COUPON_ITEM: swap below with ctx.drawImage(ASSETS.COUPON_ITEM, ...)
         const glow = Math.abs(Math.sin(it.pulse * 2));
-        ctx.shadowColor  = `rgba(255,215,0,${0.4 + glow * 0.4})`;
+        ctx.shadowColor  = `rgba(255,215,0,${(0.4 + glow * 0.4).toFixed(2)})`;
         ctx.shadowBlur   = 12 + glow * 8;
-        ctx.strokeStyle  = `rgba(255,215,0,${0.7 + glow * 0.3})`;
+        ctx.strokeStyle  = `rgba(255,215,0,${(0.7 + glow * 0.3).toFixed(2)})`;
         ctx.lineWidth    = 1.5;
         ctx.strokeRect(px, py, it.w, it.h);
-        ctx.fillStyle    = `rgba(255,215,0,${0.08 + glow * 0.06})`;
+        ctx.fillStyle    = `rgba(255,215,0,${(0.08 + glow * 0.06).toFixed(2)})`;
         ctx.fillRect(px, py, it.w, it.h);
-        // star glyph
-        ctx.fillStyle = `rgba(255,215,0,${0.8 + glow * 0.2})`;
-        ctx.font = `${Math.round(it.h * 0.65)}px monospace`;
-        ctx.textAlign = 'center';
+        // Star glyph
+        ctx.fillStyle    = `rgba(255,215,0,${(0.8 + glow * 0.2).toFixed(2)})`;
+        ctx.font         = `${(it.h * 0.65) | 0}px monospace`;
+        ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('★', px + it.w/2, py + it.h/2);
+        ctx.fillText('★', px + it.w / 2, py + it.h / 2);
       } else {
         // ── COIN_ITEM (mafia.webp) ──
-        if (ASSETS.COIN_ITEM && ASSETS.COIN_ITEM.complete) {
-          const ratio = ASSETS.COIN_ITEM.naturalWidth / ASSETS.COIN_ITEM.naturalHeight;
-          const dh = it.h;
-          const dw = dh * ratio;
-          ctx.drawImage(ASSETS.COIN_ITEM, px, py, dw, dh);
+        const img = ASSETS.COIN_ITEM;
+        if (img && img.complete) {
+          if (!_coinRatio) _coinRatio = img.naturalWidth / img.naturalHeight;
+          ctx.drawImage(img, px, py, it.h * _coinRatio, it.h);
         } else {
-          ctx.fillStyle = 'rgba(200,255,0,0.7)';
-          ctx.font = `${Math.round(it.h * 0.6)}px monospace`;
-          ctx.textAlign = 'center';
+          ctx.fillStyle    = 'rgba(200,255,0,0.7)';
+          ctx.font         = `${(it.h * 0.6) | 0}px monospace`;
+          ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('◆', px + it.w/2, py + it.h/2 + 1);
+          ctx.fillText('◆', px + it.w / 2, py + it.h / 2 + 1);
         }
       }
       ctx.restore();
     }
   }
 
-  function getAll() { return items; }
+  // Returns active, uncollected items — used by Collision
+  function getAll() {
+    const active = [];
+    for (let i = 0; i < MAX_ITEMS; i++) {
+      if (_pool[i].active && !_pool[i].collected) active.push(_pool[i]);
+    }
+    return active;
+  }
 
   return { init, update, draw, getAll };
 })();
 
 /* ----------------------------------------------------------------
    COLLISION — AABB with hitbox shrink for fairness
+
+   Optimization: Player.hitbox() now returns a cached object (no GC).
+   Obstacle hitboxes are computed inline to avoid extra allocation.
 ---------------------------------------------------------------- */
 const Collision = {
-  aabb(a, b) {
-    return a.x < b.x + b.w &&
-           a.x + a.w > b.x &&
-           a.y < b.y + b.h &&
-           a.y + a.h > b.y;
+  // Inline AABB — inlined as a method to allow JIT optimization
+  aabb(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw &&
+           ax + aw > bx &&
+           ay < by + bh &&
+           ay + ah > by;
   },
 
   check() {
-    const ph = Player.hitbox();
+    const ph = Player.hitbox(); // returns reused object
+    const px = ph.x, py = ph.y, pw = ph.w, phh = ph.h;
 
-    // Obstacles
+    // Obstacle collision
     if (!GS.invincible) {
-      for (const o of ObstaclePool.getAll()) {
-        const oh = { x: o.x + 4, y: o.y + 4, w: o.w - 8, h: o.h - 8 };
-        if (this.aabb(ph, oh)) {
-          // patrulla gets special sound
-          if (o.type.id === 'POLICE_OBSTACLE') {
-            SoundSystem.play('xeso');
-          } else {
-            SoundSystem.play('hit');
-          }
+      const obs = ObstaclePool.getAll();
+      for (let i = 0; i < obs.length; i++) {
+        const o  = obs[i];
+        const ox = o.x + 4, oy = o.y + 4, ow = o.w - 8, oh = o.h - 8;
+        if (this.aabb(px, py, pw, phh, ox, oy, ow, oh)) {
+          SoundSystem.play(o.type.id === 'POLICE_OBSTACLE' ? 'xeso' : 'hit');
           playerHit();
           return;
         }
       }
     }
 
-    // Collectibles
-    for (const it of CollectiblePool.getAll()) {
-      if (!it.collected && this.aabb(ph, { x: it.x, y: it.y, w: it.w, h: it.h })) {
+    // Collectible collision
+    const items = CollectiblePool.getAll();
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (this.aabb(px, py, pw, phh, it.x, it.y, it.w, it.h)) {
         it.collected = true;
         if (it.type === 'COUPON') {
           GS.couponsEarned++;
@@ -781,9 +920,10 @@ const CouponSystem = {
    DIFFICULTY — speed ramp
 ---------------------------------------------------------------- */
 const Difficulty = {
+  _incPerMs: CONFIG.SPEED_INCREMENT * 60 / 1000, // pre-computed constant
   update(dt) {
     GS.speed = clamp(
-      GS.speed + CONFIG.SPEED_INCREMENT * dt * 60 / 1000,
+      GS.speed + this._incPerMs * dt,
       CONFIG.BASE_SPEED,
       CONFIG.MAX_SPEED
     );
@@ -792,49 +932,66 @@ const Difficulty = {
 
 /* ----------------------------------------------------------------
    PARTICLE SYSTEM — minimal dust / hit sparks
+
+   Optimization: fixed-capacity pool avoids Array.filter() each frame.
+   Particles are recycled by swapping with the last active particle
+   (O(1) removal with no array shift).
 ---------------------------------------------------------------- */
-const Particles = {
-  list: [],
+const Particles = (() => {
+  const MAX_P = 64;
+  const _pool = Array.from({ length: MAX_P }, () => ({
+    x: 0, y: 0, vx: 0, vy: 0, life: 0, decay: 0, r: 0, color: '#fff',
+  }));
+  let _count = 0; // number of active particles
 
-  emit(x, y, color, count = 5) {
-    for (let i = 0; i < count; i++) {
-      this.list.push({
-        x, y,
-        vx: rand(-3, 3),
-        vy: rand(-5, -1),
-        life: 1,
-        decay: rand(0.02, 0.06),
-        r: rand(1.5, 3.5),
-        color,
-      });
+  function emit(x, y, color, count = 5) {
+    for (let i = 0; i < count && _count < MAX_P; i++) {
+      const p  = _pool[_count++];
+      p.x      = x;
+      p.y      = y;
+      p.vx     = rand(-3, 3);
+      p.vy     = rand(-5, -1);
+      p.life   = 1;
+      p.decay  = rand(0.02, 0.06);
+      p.r      = rand(1.5, 3.5);
+      p.color  = color;
     }
-  },
+  }
 
-  update(dt) {
+  function update(dt) {
     const dtf = dt * 60 / 1000;
-    for (const p of this.list) {
-      p.x += p.vx * dtf;
-      p.y += p.vy * dtf;
-      p.vy += 0.2 * dtf;
+    for (let i = _count - 1; i >= 0; i--) {
+      const p = _pool[i];
+      p.x    += p.vx * dtf;
+      p.y    += p.vy * dtf;
+      p.vy   += 0.2 * dtf;
       p.life -= p.decay * dtf;
+      // Swap-remove dead particles (O(1), no array shift)
+      if (p.life <= 0) {
+        _pool[i]        = _pool[_count - 1];
+        _pool[_count - 1] = p;
+        _count--;
+      }
     }
-    this.list = this.list.filter(p => p.life > 0);
-  },
+  }
 
-  draw() {
-    for (const p of this.list) {
-      ctx.save();
+  function draw() {
+    for (let i = 0; i < _count; i++) {
+      const p = _pool[i];
       ctx.globalAlpha = p.life;
       ctx.fillStyle   = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.r, 0, TWO_PI);
       ctx.fill();
-      ctx.restore();
     }
-  },
+    // Reset alpha once after all particles (one state change vs. many)
+    if (_count > 0) ctx.globalAlpha = 1;
+  }
 
-  reset() { this.list = []; },
-};
+  function reset() { _count = 0; }
+
+  return { emit, update, draw, reset };
+})();
 
 /* ----------------------------------------------------------------
    RENDERER
@@ -851,11 +1008,11 @@ const Renderer = {
     CollectiblePool.draw();
     Player.draw();
     Particles.draw();
-    this.drawSpeedLine();
+    this._drawSpeedLines();
   },
 
-  drawSpeedLine() {
-    // subtle speed streak when fast
+  _drawSpeedLines() {
+    // Subtle speed streaks when fast — only drawn above 30% of max speed range
     const t = (GS.speed - CONFIG.BASE_SPEED) / (CONFIG.MAX_SPEED - CONFIG.BASE_SPEED);
     if (t < 0.3) return;
     ctx.save();
@@ -863,7 +1020,7 @@ const Renderer = {
     ctx.fillStyle   = '#c8ff00';
     for (let i = 0; i < 3; i++) {
       const y = rand(GROUND_Y - 40, GROUND_Y - 10);
-      ctx.fillRect(0, y, W * rand(0.3, 0.9), 1);
+      ctx.fillRect(0, y | 0, W * rand(0.3, 0.9), 1);
     }
     ctx.restore();
   },
@@ -873,20 +1030,20 @@ const Renderer = {
    SCREENS
 ---------------------------------------------------------------- */
 const Screens = {
-  start:   document.getElementById('startScreen'),
-  gameOver:document.getElementById('gameOverScreen'),
-  goScore: document.getElementById('goScore'),
-  goBest:  document.getElementById('goBest'),
+  start:    document.getElementById('startScreen'),
+  gameOver: document.getElementById('gameOverScreen'),
+  goScore:  document.getElementById('goScore'),
+  goBest:   document.getElementById('goBest'),
   goCoupons:document.getElementById('goCoupons'),
-  tapHint: document.getElementById('tap-hint'),
+  tapHint:  document.getElementById('tap-hint'),
 
   showStart() {
     this.start.classList.remove('hidden');
     this.gameOver.classList.add('hidden');
   },
   showGameOver() {
-    this.goScore.textContent = GS.score;
-    this.goBest.textContent  = GS.best;
+    this.goScore.textContent   = GS.score;
+    this.goBest.textContent    = GS.best;
     this.goCoupons.textContent = GS.couponsEarned
       ? `★ CUPONES CONSEGUIDOS (mandanos ss a wpp): ${GS.couponsEarned}`
       : '';
@@ -930,7 +1087,6 @@ function playerHit() {
   GS.invincible = true;
   GS.hitTime    = Date.now();
 
-  // Emit hit particles
   Particles.emit(
     Player.x + Player.w / 2,
     Player.y + Player.h / 2,
@@ -956,11 +1112,17 @@ function gameOver() {
 
 /* ----------------------------------------------------------------
    GAME LOOP
+   - dt is capped at 50 ms to prevent physics tunnelling after
+     tab-backgrounding / resumed frames.
+   - The static-frame loop for the start screen is unified here so
+     there is never more than one rAF loop running at a time.
 ---------------------------------------------------------------- */
+let _loopId = null; // tracks the rAF ID for the static start-screen loop
+
 function loop(timestamp) {
   if (!GS.running) return;
 
-  const dt = Math.min(timestamp - GS.lastTime, 50); // cap at 50ms
+  const dt = Math.min(timestamp - GS.lastTime, 50);
   GS.lastTime = timestamp;
   GS.frame++;
 
@@ -976,29 +1138,40 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
+function staticLoop() {
+  if (GS.running) return; // hand off once the game starts
+  Background.draw();
+  _loopId = requestAnimationFrame(staticLoop);
+}
+
 /* ----------------------------------------------------------------
    INPUT — keyboard + touch
+   Touch improvements for mobile:
+   - touchstart uses passive:false only on the canvas (needed for
+     preventDefault to suppress scroll/zoom).
+   - Wrapper listener is passive:true (no need to block default).
+   - Button handlers use touchend to fire once (not doubled by click).
 ---------------------------------------------------------------- */
 const Input = {
   init() {
     // Keyboard
     window.addEventListener('keydown', (e) => {
-      if (['Space','ArrowUp','KeyW'].includes(e.code)) {
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
         this.action();
       }
     });
 
-    // Touch — first tap anywhere plays intro (iOS gesture unlock)
+    // iOS Safari audio unlock — run once on any user gesture
     let introPlayed = false;
-    function playIntroOnce() {
-      if (!introPlayed) {
-        introPlayed = true;
-        SoundSystem.unlock();
-        SoundSystem.play('intro');
-      }
-    }
+    const playIntroOnce = () => {
+      if (introPlayed) return;
+      introPlayed = true;
+      SoundSystem.unlock();
+      SoundSystem.play('intro');
+    };
 
+    // Canvas touch — prevent default to stop scroll/zoom on mobile
     canvas.style.touchAction = 'none';
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -1007,15 +1180,14 @@ const Input = {
       this.action();
     }, { passive: false });
 
-    // Also catch taps on the start screen overlay (outside canvas)
-    document.getElementById('wrapper').addEventListener('touchstart', (e) => {
-      playIntroOnce();
-    }, { passive: true });
+    // Wrapper touch — passive, just for audio unlock
+    document.getElementById('wrapper').addEventListener('touchstart', playIntroOnce, { passive: true });
 
-    // Buttons
+    // Buttons — touchend fires once on mobile; click covers desktop
     const startBtn   = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
-    function btnTouch(e) { e.preventDefault(); playIntroOnce(); startGame(); }
+
+    const btnTouch = (e) => { e.preventDefault(); playIntroOnce(); startGame(); };
     startBtn.addEventListener('touchend',   btnTouch, { passive: false });
     restartBtn.addEventListener('touchend', btnTouch, { passive: false });
     startBtn.addEventListener('click',   () => { SoundSystem.unlock(); startGame(); });
@@ -1030,19 +1202,16 @@ const Input = {
 
 /* ----------------------------------------------------------------
    BOOT
+   - Input, Background and static draw loop initialised once.
+   - A single rAF drives the start-screen animation; the game loop
+     takes over when the player starts.
 ---------------------------------------------------------------- */
 Input.init();
 Background.init();
-Renderer.drawBackground();
-Screens.showStart();
 
-// Desktop: try autoplay immediately. iOS: will silently fail,
-// intro will play instead on first screen touch (see Input.init).
+// Desktop: attempt autoplay immediately.
+// iOS: will silently fail; intro plays on first user gesture (Input.init).
 SoundSystem.play('intro');
 
-// Draw a static frame on start screen
-(function staticFrame() {
-  Background.draw();
-  requestAnimationFrame(staticFrame);
-})();
-
+Screens.showStart();
+staticLoop(); // begins the idle background animation

@@ -2,14 +2,13 @@
 <html lang="es">
 <head>
   <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-VNHC1Z3FXZ"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-VNHC1Z3FXZ');
-</script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VNHC1Z3FXZ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-VNHC1Z3FXZ');
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hidden Room</title>
@@ -17,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Unbounded:wght@200;400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  
 </head>
 <body>
 
@@ -25,7 +25,8 @@
 
 <nav>
   <a href="#" class="nav-logo">
-    <img src="assets/img/white_logo.webp" alt="Hidden Room" style="height:44px;width:auto;">
+    <!-- CHANGE: removed inline style="height:44px;width:auto;" → now .img-logo in CSS -->
+    <img src="assets/img/white_logo.webp" alt="Hidden Room" class="img-logo">
   </a>
   <ul class="nav-links">
     <li><a href="#events">Eventos</a></li>
@@ -61,7 +62,7 @@
     <div class="hero-coords">
       Una Marca<br>
       de Grupo Mysauth<br>
-      V. 0.2.2 - Sitio en Construcción
+      V. 0.2.3 - Sitio en Construcción
     </div>
   </div>
 
@@ -96,7 +97,8 @@
   <div class="pillars-header reveal">
     <div>
       <div class="section-label"><span class="section-num">Últimas</span> Novedades</div>
-      <h2 class="pillars-title" style="text-transform: uppercase;">La casa del under.</h2>
+      <!-- CHANGE: removed inline style="text-transform: uppercase;" → already in .pillars-title CSS -->
+      <h2 class="pillars-title">La casa del under.</h2>
     </div>
     <p class="pillars-desc">Cultura underground de México para la gente.</p>
   </div>
@@ -156,7 +158,8 @@
 
 <section class="studio" id="studio">
   <div class="studio-visual reveal">
-    <img src="assets/img/studio_mic_1.jpg" alt="Hidden Room" style="width:100%;height:100%;object-fit:cover;">
+    <!-- CHANGE: removed inline style="width:100%;height:100%;object-fit:cover;" → now .img-cover in CSS -->
+    <img src="assets/img/studio_mic_1.jpg" alt="Hidden Room" class="img-cover">
   </div>
 
   <div class="studio-content reveal">
@@ -228,9 +231,15 @@
 
 <footer>
   <div class="footer-logo">
-    <img src="assets/img/white_logo.webp" alt="Hidden Room" style="height:44px;width:auto;">
+    <!-- CHANGE: removed inline style="height:44px;width:auto;" → now .img-logo in CSS -->
+    <img src="assets/img/white_logo.webp" alt="Hidden Room" class="img-logo">
   </div>
-  <div class="footer-copy">Una Marca de Grupo Mysauth - Sitio en Construcción V. 0.2.2</div>
+  <div class="footer-copy">
+  Una Marca de Grupo Mysauth -
+  <span class="site-status"></span>
+  <span class="site-version"></span>
+</div>
+
   <div class="footer-right">La Casa del Under</div>
 </footer>
 
@@ -289,5 +298,6 @@
     track.style.transform = `translateX(-${galleryIndex * 100}%)`;
   }
 </script>
+<script src="site.js"></script>
 </body>
 </html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión — Hidden Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Unbounded:wght@200;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="login_style.css">
+</head>
+<body>
+
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-ring" id="cursorRing"></div>
+
+  <main class="login-page">
+
+    <div class="login-card">
+
+      <div class="login-logo">
+        <img src="../assets/img/white_logo.webp" alt="Hidden Room" class="img-logo">
+      </div>
+
+      <p class="login-eyebrow">La Casa del Under</p>
+
+      <h1 class="login-title">Inicia<br>Sesión</h1>
+
+      <form class="login-form" action="#" method="post" novalidate>
+
+        <div class="login-field">
+          <label class="login-label" for="usuario">Usuario</label>
+          <input
+            class="login-input"
+            id="usuario"
+            type="usuario"
+            name="usuario"
+            placeholder="usuario"
+            autocomplete="usuario"
+            required
+          >
+        </div>
+
+        <div class="login-field">
+          <label class="login-label" for="password">Contraseña</label>
+          <input
+            class="login-input"
+            id="password"
+            type="password"
+            name="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+
+        <a href="#" class="login-forgot">¿Olvidaste tu contraseña?</a>
+
+        <button class="login-submit" type="submit">Entrar</button>
+
+      </form>
+
+      <div class="login-divider">
+        <span class="login-divider-text">o</span>
+      </div>
+
+      <p class="login-register">
+        ¿No tienes cuenta? <a href="#">Regístrate</a>
+      </p>
+
+      <p class="login-version">Una Marca de Grupo Mysauth -
+  <span class="site-status"></span>
+  <span class="site-version"></span></p>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Custom cursor — same script as main page
+    const cursor = document.getElementById('cursor');
+    const ring   = document.getElementById('cursorRing');
+    let mx = 0, my = 0, rx = 0, ry = 0;
+
+    document.addEventListener('mousemove', e => {
+      mx = e.clientX; my = e.clientY;
+      cursor.style.transform = `translate(${mx - 5}px, ${my - 5}px)`;
+    });
+
+    function animRing() {
+      rx += (mx - rx) * 0.12;
+      ry += (my - ry) * 0.12;
+      ring.style.transform = `translate(${rx - 18}px, ${ry - 18}px)`;
+      requestAnimationFrame(animRing);
+    }
+    animRing();
+
+    document.querySelectorAll('a, button, input').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        ring.style.borderColor = 'rgba(219,1,0,0.8)';
+      });
+      el.addEventListener('mouseleave', () => {
+        ring.style.borderColor = 'rgba(219,1,0,0.5)';
+      });
+    });
+  </script>
+<script src="../site.js"></script>
+</body>
+</html>
