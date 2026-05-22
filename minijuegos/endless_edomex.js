@@ -71,14 +71,14 @@ const CONFIG = {
 ---------------------------------------------------------------- */
 const ASSETS = {
   // PLAYER_SPRITE — replace null with loaded HTMLImageElement
-  PLAYER_SPRITE: (() => { const img = new Image(); img.src = '../assets/img/kairen.png'; return img; })(),   // e.g. 32×48 px sprite sheet
+  PLAYER_SPRITE: (() => { const img = new Image(); img.src = '../assets/img/kairen.webp'; return img; })(),   // e.g. 32×48 px sprite sheet
 
   // Obstacle sprites
-  DOG_OBSTACLE:     (() => { const img = new Image(); img.src = '../assets/sprites/tsuru.png';    return img; })(),
-  POLICE_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/patrulla.png'; return img; })(),
-  POTHOLE_OBSTACLE: (() => { const img = new Image(); img.src = '../assets/sprites/grava.png';    return img; })(),
-  MARKET_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/bote.png';     return img; })(),
-  CONE_OBSTACLE:    (() => { const img = new Image(); img.src = '../assets/sprites/poste.png';    return img; })(),
+  DOG_OBSTACLE:     (() => { const img = new Image(); img.src = '../assets/sprites/tsuru.webp';    return img; })(),
+  POLICE_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/patrulla.webp'; return img; })(),
+  POTHOLE_OBSTACLE: (() => { const img = new Image(); img.src = '../assets/sprites/grava.webp';    return img; })(),
+  MARKET_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/bote.webp';     return img; })(),
+  CONE_OBSTACLE:    (() => { const img = new Image(); img.src = '../assets/sprites/poste.webp';    return img; })(),
 
   // Collectibles
   COUPON_ITEM:        null,   // rare redeemable coupon glyph
@@ -441,7 +441,7 @@ const OBSTACLE_TYPES = [
     // ground-level
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── DOG_OBSTACLE (tsuru.png) ──
+      // ── DOG_OBSTACLE (tsuru.webp) ──
       if (ASSETS.DOG_OBSTACLE && ASSETS.DOG_OBSTACLE.complete) {
         const ratio = ASSETS.DOG_OBSTACLE.naturalWidth / ASSETS.DOG_OBSTACLE.naturalHeight;
         const dw = h * ratio;
@@ -462,7 +462,7 @@ const OBSTACLE_TYPES = [
     accent: '#ff2b4e',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── POLICE_OBSTACLE (patrulla.png) ──
+      // ── POLICE_OBSTACLE (patrulla.webp) ──
       if (ASSETS.POLICE_OBSTACLE && ASSETS.POLICE_OBSTACLE.complete) {
         const ratio = ASSETS.POLICE_OBSTACLE.naturalWidth / ASSETS.POLICE_OBSTACLE.naturalHeight;
         const dw = h * ratio;
@@ -485,7 +485,7 @@ const OBSTACLE_TYPES = [
     accent: '#222222',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── POTHOLE_OBSTACLE (grava.png) ──
+      // ── POTHOLE_OBSTACLE (grava.webp) ──
       if (ASSETS.POTHOLE_OBSTACLE && ASSETS.POTHOLE_OBSTACLE.complete) {
         const ratio = ASSETS.POTHOLE_OBSTACLE.naturalWidth / ASSETS.POTHOLE_OBSTACLE.naturalHeight;
         const dw = h * ratio;
@@ -507,7 +507,7 @@ const OBSTACLE_TYPES = [
     accent: '#2e2e2e',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── MARKET_OBSTACLE (bote.png) ──
+      // ── MARKET_OBSTACLE (bote.webp) ──
       if (ASSETS.MARKET_OBSTACLE && ASSETS.MARKET_OBSTACLE.complete) {
         const ratio = ASSETS.MARKET_OBSTACLE.naturalWidth / ASSETS.MARKET_OBSTACLE.naturalHeight;
         const dw = h * ratio;
@@ -527,7 +527,7 @@ const OBSTACLE_TYPES = [
     accent: '#333333',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── CONE_OBSTACLE (poste.png) ──
+      // ── CONE_OBSTACLE (poste.webp) ──
       if (ASSETS.CONE_OBSTACLE && ASSETS.CONE_OBSTACLE.complete) {
         const ratio = ASSETS.CONE_OBSTACLE.naturalWidth / ASSETS.CONE_OBSTACLE.naturalHeight;
         const dw = h * ratio;
@@ -981,19 +981,33 @@ const Input = {
       }
     });
 
-    // Touch
+    // Touch — first tap anywhere plays intro (iOS gesture unlock)
+    let introPlayed = false;
+    function playIntroOnce() {
+      if (!introPlayed) {
+        introPlayed = true;
+        SoundSystem.unlock();
+        SoundSystem.play('intro');
+      }
+    }
+
     canvas.style.touchAction = 'none';
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      SoundSystem.unlock();
+      playIntroOnce();
       this.action();
     }, { passive: false });
+
+    // Also catch taps on the start screen overlay (outside canvas)
+    document.getElementById('wrapper').addEventListener('touchstart', (e) => {
+      playIntroOnce();
+    }, { passive: true });
 
     // Buttons
     const startBtn   = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
-    function btnTouch(e) { e.preventDefault(); SoundSystem.unlock(); startGame(); }
+    function btnTouch(e) { e.preventDefault(); playIntroOnce(); startGame(); }
     startBtn.addEventListener('touchend',   btnTouch, { passive: false });
     restartBtn.addEventListener('touchend', btnTouch, { passive: false });
     startBtn.addEventListener('click',   () => { SoundSystem.unlock(); startGame(); });
@@ -1014,7 +1028,8 @@ Background.init();
 Renderer.drawBackground();
 Screens.showStart();
 
-// Play intro sound (will work on desktop autoplay, on iOS waits for first gesture)
+// Desktop: try autoplay immediately. iOS: will silently fail,
+// intro will play instead on first screen touch (see Input.init).
 SoundSystem.play('intro');
 
 // Draw a static frame on start screen
