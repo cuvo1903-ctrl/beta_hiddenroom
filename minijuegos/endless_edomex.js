@@ -96,12 +96,12 @@ const ASSETS = {
    All sounds are preloaded. SoundSystem.play() handles iOS unlock.
 ---------------------------------------------------------------- */
 const SOUNDS = {
-  awb:       '../assets/sounds/awb.wav',       // coupon collected
-  game_over: '../assets/sounds/game_over.wav', // player loses
-  intro:     '../assets/sounds/intro.wav',     // page open
-  jump:      '../assets/sounds/touch_game.wav',// jump
-  xeso:      '../assets/sounds/xeso.wav',      // hit patrulla
-  hit:       '../assets/sounds/hit.wav',       // hit any other obstacle
+  awb:       '../assets/sounds/awb.mp3',       // coupon collected
+  game_over: '../assets/sounds/game_over.mp3', // player loses
+  intro:     '../assets/sounds/intro.mp3',     // page open
+  jump:      '../assets/sounds/touch_game.mp3',// jump
+  xeso:      '../assets/sounds/xeso.mp3',      // hit patrulla
+  hit:       '../assets/sounds/hit.mp3',       // hit any other obstacle
 };
 
 const SoundSystem = {
