@@ -92,6 +92,58 @@ const ASSETS = {
 };
 
 /* ----------------------------------------------------------------
+   SOUNDS — centralized audio references
+   All sounds are preloaded. SoundSystem.play() handles iOS unlock.
+---------------------------------------------------------------- */
+const SOUNDS = {
+  awb:       '../assets/sounds/awb.wav',       // coupon collected
+  game_over: '../assets/sounds/game_over.wav', // player loses
+  intro:     '../assets/sounds/intro.wav',     // page open
+  jump:      '../assets/sounds/touch_game.wav',// jump
+  xeso:      '../assets/sounds/xeso.wav',      // hit patrulla
+  hit:       '../assets/sounds/hit.wav',       // hit any other obstacle
+};
+
+const SoundSystem = {
+  _cache: {},
+  _unlocked: false,
+
+  // iOS Safari requires a user gesture before playing audio.
+  // We unlock on first touch/click by playing a silent buffer.
+  unlock() {
+    if (this._unlocked) return;
+    this._unlocked = true;
+    // pre-load all sounds now that we have a gesture
+    for (const [key, src] of Object.entries(SOUNDS)) {
+      const audio = new Audio(src);
+      audio.preload = 'auto';
+      this._cache[key] = audio;
+    }
+  },
+
+  play(key, volume = 1) {
+    const src = SOUNDS[key];
+    if (!src) return;
+    try {
+      // Clone the audio so overlapping sounds work
+      let audio = this._cache[key];
+      if (!audio) {
+        audio = new Audio(src);
+        this._cache[key] = audio;
+      }
+      const clone = audio.cloneNode();
+      clone.volume = volume;
+      clone.play().catch(() => {}); // silently ignore autoplay block
+    } catch(e) {}
+  },
+
+  stop(key) {
+    const audio = this._cache[key];
+    if (audio) { audio.pause(); audio.currentTime = 0; }
+  },
+};
+
+/* ----------------------------------------------------------------
    UTILS
 ---------------------------------------------------------------- */
 const rand    = (min, max) => Math.random() * (max - min) + min;
@@ -307,10 +359,12 @@ const Player = {
       this.onGround = false;
       this.jumpCount = 1;
       this.canDoubleJump = true;
+      SoundSystem.play('jump');
     } else if (this.canDoubleJump && this.jumpCount < 2) {
       this.vy = CONFIG.DOUBLE_JUMP_FORCE;
       this.canDoubleJump = false;
       this.jumpCount = 2;
+      SoundSystem.play('jump', 0.7);
     }
   },
 
@@ -648,7 +702,16 @@ const Collision = {
     if (!GS.invincible) {
       for (const o of ObstaclePool.getAll()) {
         const oh = { x: o.x + 4, y: o.y + 4, w: o.w - 8, h: o.h - 8 };
-        if (this.aabb(ph, oh)) { playerHit(); return; }
+        if (this.aabb(ph, oh)) {
+          // patrulla gets special sound
+          if (o.type.id === 'POLICE_OBSTACLE') {
+            SoundSystem.play('xeso');
+          } else {
+            SoundSystem.play('hit');
+          }
+          playerHit();
+          return;
+        }
       }
     }
 
@@ -659,6 +722,7 @@ const Collision = {
         if (it.type === 'COUPON') {
           GS.couponsEarned++;
           Score.add(50);
+          SoundSystem.play('awb');
           CouponSystem.onEarned();
         } else {
           Score.add(5);
@@ -878,6 +942,7 @@ function gameOver() {
   GS.running = false;
   GS.over    = true;
   Score.saveBest();
+  SoundSystem.play('game_over');
   setTimeout(() => Screens.showGameOver(), 500);
 }
 
@@ -921,17 +986,18 @@ const Input = {
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      SoundSystem.unlock();
       this.action();
     }, { passive: false });
 
     // Buttons
     const startBtn   = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
-    function btnTouch(e) { e.preventDefault(); startGame(); }
+    function btnTouch(e) { e.preventDefault(); SoundSystem.unlock(); startGame(); }
     startBtn.addEventListener('touchend',   btnTouch, { passive: false });
     restartBtn.addEventListener('touchend', btnTouch, { passive: false });
-    startBtn.addEventListener('click',   () => startGame());
-    restartBtn.addEventListener('click', () => startGame());
+    startBtn.addEventListener('click',   () => { SoundSystem.unlock(); startGame(); });
+    restartBtn.addEventListener('click', () => { SoundSystem.unlock(); startGame(); });
   },
 
   action() {
@@ -945,8 +1011,11 @@ const Input = {
 ---------------------------------------------------------------- */
 Input.init();
 Background.init();
-Renderer.drawBackground(); // draw something before start
+Renderer.drawBackground();
 Screens.showStart();
+
+// Play intro sound (will work on desktop autoplay, on iOS waits for first gesture)
+SoundSystem.play('intro');
 
 // Draw a static frame on start screen
 (function staticFrame() {
