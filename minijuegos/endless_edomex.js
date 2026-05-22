@@ -74,24 +74,21 @@ const ASSETS = {
   PLAYER_SPRITE: (() => { const img = new Image(); img.src = '../assets/img/kairen.png'; return img; })(),   // e.g. 32×48 px sprite sheet
 
   // Obstacle sprites
-  DOG_OBSTACLE:       null,   // street dog
-  POLICE_OBSTACLE:    null,   // cop silhouette
-  POTHOLE_OBSTACLE:   null,   // pothole / cracked asphalt
-  MARKET_OBSTACLE:    null,   // tianguis cart
-  CONE_OBSTACLE:      null,   // traffic cone
+  DOG_OBSTACLE:     (() => { const img = new Image(); img.src = '../assets/sprites/tsuru.png';    return img; })(),
+  POLICE_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/patrulla.png'; return img; })(),
+  POTHOLE_OBSTACLE: (() => { const img = new Image(); img.src = '../assets/sprites/grava.png';    return img; })(),
+  MARKET_OBSTACLE:  (() => { const img = new Image(); img.src = '../assets/sprites/bote.png';     return img; })(),
+  CONE_OBSTACLE:    (() => { const img = new Image(); img.src = '../assets/sprites/poste.png';    return img; })(),
 
   // Collectibles
   COUPON_ITEM:        null,   // rare redeemable coupon glyph
   COIN_ITEM:          null,   // regular score pickup
 
   // Background layers (far → near)
-  STREET_BG_FAR: (() => { const img = new Image(); img.src = '../assets/img/background.png'; return img; })(),
-STREET_BG_MID:      null,
-STREET_BG_NEAR:     null,
-STREET_BG_DECO:     null,   // city skyline silhouette
-  STREET_BG_MID:      null,   // building facades
-  STREET_BG_NEAR:     null,   // foreground details (graffiti walls)
-  STREET_BG_DECO:     null,   // street-level props
+  STREET_BG_FAR:  (() => { const img = new Image(); img.src = '../assets/img/background.png'; return img; })(),
+  STREET_BG_MID:  null,
+  STREET_BG_NEAR: null,
+  STREET_BG_DECO: null,
 };
 
 /* ----------------------------------------------------------------
@@ -285,7 +282,7 @@ const Background = {
 ---------------------------------------------------------------- */
 const Player = {
   x: 0, y: 0,
-  w: 28, h: 48,
+  w: 48, h: 68,
   vy: 0,
   onGround: false,
   canDoubleJump: true,
@@ -384,123 +381,86 @@ const OBSTACLE_TYPES = [
     id:     'DOG_OBSTACLE',
     label:  'perro',
     wMin: 24, wMax: 38,
-    hMin: 22, hMax: 32,
+    hMin: 70, hMax: 70,
     color:  '#2a2a2a',
     accent: '#444444',
     // ground-level
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── DOG_OBSTACLE: swap with ctx.drawImage(ASSETS.DOG_OBSTACLE, x, y, w, h)
-      ctx.fillStyle = this.color;
-      // body
-      ctx.fillRect(x, y + h * 0.35, w, h * 0.45);
-      // head
-      ctx.fillRect(x + w * 0.6, y + h * 0.15, w * 0.4, h * 0.35);
-      // legs
-      ctx.fillStyle = this.accent;
-      ctx.fillRect(x + w*0.1, y + h*0.72, w*0.15, h*0.28);
-      ctx.fillRect(x + w*0.35, y + h*0.72, w*0.15, h*0.28);
-      ctx.fillRect(x + w*0.6, y + h*0.72, w*0.15, h*0.28);
-      // tail
-      ctx.fillStyle = this.color;
-      ctx.fillRect(x, y + h * 0.3, w * 0.15, h * 0.15);
+      // ── DOG_OBSTACLE (tsuru.png) ──
+      if (ASSETS.DOG_OBSTACLE && ASSETS.DOG_OBSTACLE.complete) {
+        const ratio = ASSETS.DOG_OBSTACLE.naturalWidth / ASSETS.DOG_OBSTACLE.naturalHeight;
+        const dw = h * ratio;
+        ctx.drawImage(ASSETS.DOG_OBSTACLE, x, y, dw, h);
+      } else {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(x, y + h * 0.35, w, h * 0.45);
+        ctx.fillRect(x + w * 0.6, y + h * 0.15, w * 0.4, h * 0.35);
+      }
     },
   },
   {
     id:     'POLICE_OBSTACLE',
     label:  'tira',
     wMin: 20, wMax: 30,
-    hMin: 44, hMax: 60,
+    hMin: 75, hMax: 75,
     color:  '#1a1a2e',
     accent: '#ff2b4e',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── POLICE_OBSTACLE: swap with ctx.drawImage(ASSETS.POLICE_OBSTACLE, x, y, w, h)
-      ctx.fillStyle = this.color;
-      // body
-      ctx.fillRect(x + w*0.2, y + h*0.3, w*0.6, h*0.5);
-      // head
-      ctx.beginPath();
-      ctx.arc(x + w/2, y + h*0.18, w*0.22, 0, Math.PI*2);
-      ctx.fill();
-      // hat
-      ctx.fillStyle = '#10102a';
-      ctx.fillRect(x + w*0.15, y + h*0.05, w*0.7, h*0.13);
-      // badge flicker
-      if (Math.floor(Date.now()/300) % 2) ctx.fillStyle = this.accent;
-      else ctx.fillStyle = '#222244';
-      ctx.fillRect(x + w*0.38, y + h*0.38, w*0.24, h*0.1);
-      // legs
-      ctx.fillStyle = this.color;
-      ctx.fillRect(x + w*0.25, y + h*0.78, w*0.18, h*0.22);
-      ctx.fillRect(x + w*0.55, y + h*0.78, w*0.18, h*0.22);
+      // ── POLICE_OBSTACLE (patrulla.png) ──
+      if (ASSETS.POLICE_OBSTACLE && ASSETS.POLICE_OBSTACLE.complete) {
+        const ratio = ASSETS.POLICE_OBSTACLE.naturalWidth / ASSETS.POLICE_OBSTACLE.naturalHeight;
+        const dw = h * ratio;
+        ctx.drawImage(ASSETS.POLICE_OBSTACLE, x, y, dw, h);
+      } else {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(x + w*0.2, y + h*0.3, w*0.6, h*0.5);
+        ctx.beginPath();
+        ctx.arc(x + w/2, y + h*0.18, w*0.22, 0, Math.PI*2);
+        ctx.fill();
+      }
     },
   },
   {
     id:     'POTHOLE_OBSTACLE',
     label:  'bache',
     wMin: 30, wMax: 55,
-    hMin: 10, hMax: 18,
+    hMin: 80, hMax: 80,
     color:  '#181818',
     accent: '#222222',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── POTHOLE_OBSTACLE: swap with ctx.drawImage(ASSETS.POTHOLE_OBSTACLE, x, y, w, h)
-      ctx.fillStyle = '#0a0a0a';
-      ctx.beginPath();
-      ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.strokeStyle = '#2a2a2a';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // cracks
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + w*0.3, y + h*0.5);
-      ctx.lineTo(x - 8, y + h*0.2);
-      ctx.moveTo(x + w*0.7, y + h*0.5);
-      ctx.lineTo(x + w + 6, y + h*0.3);
-      ctx.stroke();
+      // ── POTHOLE_OBSTACLE (grava.png) ──
+      if (ASSETS.POTHOLE_OBSTACLE && ASSETS.POTHOLE_OBSTACLE.complete) {
+        const ratio = ASSETS.POTHOLE_OBSTACLE.naturalWidth / ASSETS.POTHOLE_OBSTACLE.naturalHeight;
+        const dw = h * ratio;
+        ctx.drawImage(ASSETS.POTHOLE_OBSTACLE, x, y, dw, h);
+      } else {
+        ctx.fillStyle = '#0a0a0a';
+        ctx.beginPath();
+        ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
     },
   },
   {
     id:     'MARKET_OBSTACLE',
     label:  'puesto',
     wMin: 36, wMax: 56,
-    hMin: 36, hMax: 52,
+    hMin: 52, hMax: 52,
     color:  '#1c1c1c',
     accent: '#2e2e2e',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── MARKET_OBSTACLE: swap with ctx.drawImage(ASSETS.MARKET_OBSTACLE, x, y, w, h)
-      // cart body
-      ctx.fillStyle = this.color;
-      ctx.fillRect(x + w*0.1, y + h*0.4, w*0.8, h*0.5);
-      // canopy
-      ctx.fillStyle = '#242424';
-      ctx.beginPath();
-      ctx.moveTo(x, y + h*0.35);
-      ctx.lineTo(x + w, y + h*0.35);
-      ctx.lineTo(x + w*0.85, y + h*0.1);
-      ctx.lineTo(x + w*0.15, y + h*0.1);
-      ctx.closePath();
-      ctx.fill();
-      // wheels
-      ctx.fillStyle = '#111';
-      ctx.beginPath();
-      ctx.arc(x + w*0.25, y + h*0.95, h*0.09, 0, Math.PI*2);
-      ctx.arc(x + w*0.75, y + h*0.95, h*0.09, 0, Math.PI*2);
-      ctx.fill();
-      // stripes on canopy
-      ctx.strokeStyle = '#2c2c2c';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 4; i++) {
-        const sx = x + w*0.2 + i*w*0.16;
-        ctx.beginPath();
-        ctx.moveTo(sx, y + h*0.12);
-        ctx.lineTo(sx - w*0.04, y + h*0.35);
-        ctx.stroke();
+      // ── MARKET_OBSTACLE (bote.png) ──
+      if (ASSETS.MARKET_OBSTACLE && ASSETS.MARKET_OBSTACLE.complete) {
+        const ratio = ASSETS.MARKET_OBSTACLE.naturalWidth / ASSETS.MARKET_OBSTACLE.naturalHeight;
+        const dw = h * ratio;
+        ctx.drawImage(ASSETS.MARKET_OBSTACLE, x, y, dw, h);
+      } else {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(x + w*0.1, y + h*0.4, w*0.8, h*0.5);
       }
     },
   },
@@ -508,25 +468,25 @@ const OBSTACLE_TYPES = [
     id:     'CONE_OBSTACLE',
     label:  'cono',
     wMin: 16, wMax: 26,
-    hMin: 30, hMax: 44,
+    hMin: 90, hMax: 90,
     color:  '#1e1e1e',
     accent: '#333333',
     elevated: false,
     draw(ctx, x, y, w, h) {
-      // ── CONE_OBSTACLE: swap with ctx.drawImage(ASSETS.CONE_OBSTACLE, x, y, w, h)
-      ctx.fillStyle = this.color;
-      ctx.beginPath();
-      ctx.moveTo(x + w/2, y);
-      ctx.lineTo(x + w, y + h);
-      ctx.lineTo(x, y + h);
-      ctx.closePath();
-      ctx.fill();
-      // stripe
-      ctx.fillStyle = this.accent;
-      ctx.fillRect(x + w*0.25, y + h*0.45, w*0.5, h*0.12);
-      // base
-      ctx.fillStyle = '#222';
-      ctx.fillRect(x - 3, y + h*0.9, w + 6, h*0.1);
+      // ── CONE_OBSTACLE (poste.png) ──
+      if (ASSETS.CONE_OBSTACLE && ASSETS.CONE_OBSTACLE.complete) {
+        const ratio = ASSETS.CONE_OBSTACLE.naturalWidth / ASSETS.CONE_OBSTACLE.naturalHeight;
+        const dw = h * ratio;
+        ctx.drawImage(ASSETS.CONE_OBSTACLE, x, y, dw, h);
+      } else {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(x + w/2, y);
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x, y + h);
+        ctx.closePath();
+        ctx.fill();
+      }
     },
   },
 ];
