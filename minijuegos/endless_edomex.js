@@ -264,13 +264,15 @@ const Background = {
     // ── STREET_BACKGROUND ──
     if (ASSETS.STREET_BG_FAR && ASSETS.STREET_BG_FAR.complete) {
       ctx.drawImage(ASSETS.STREET_BG_FAR, 0, 0, W, GROUND_Y);
-      ctx.fillStyle = '#0f0f0f';
+      ctx.fillStyle = '#2a2a2a';
       ctx.fillRect(0, GROUND_Y, W, CONFIG.GROUND_HEIGHT);
-      ctx.strokeStyle = '#1e1e1e';
+      ctx.fillStyle = 'rgba(200, 160, 0, 0.75)';
+      ctx.fillRect(0, GROUND_Y, W, 3);
+      ctx.strokeStyle = '#3a3a3a';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, GROUND_Y);
-      ctx.lineTo(W, GROUND_Y);
+      ctx.moveTo(0, GROUND_Y + 3);
+      ctx.lineTo(W, GROUND_Y + 3);
       ctx.stroke();
     }
 
@@ -302,23 +304,27 @@ const Background = {
       }
     }
 
-    // Ground
-    ctx.fillStyle = '#0f0f0f';
+    // Ground — medium/dark asphalt gray
+    ctx.fillStyle = '#7a7a7a';
     ctx.fillRect(0, GROUND_Y, W, CONFIG.GROUND_HEIGHT);
 
-    // Ground line
-    ctx.strokeStyle = '#1e1e1e';
+    // Yellow curb line — CDMX street marking at top edge of road
+    ctx.fillStyle = 'rgba(255, 204, 0, 0.92)';
+    ctx.fillRect(0, GROUND_Y, W, 16);
+
+    // Ground top edge (subtle separation)
+    ctx.strokeStyle = '#3a3a3a';
     ctx.lineWidth   = 1;
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y);
-    ctx.lineTo(W, GROUND_Y);
+    ctx.moveTo(0, GROUND_Y + 3);
+    ctx.lineTo(W, GROUND_Y + 3);
     ctx.stroke();
 
     // Dashed lane marks (moving)
     const dashOffset = -(GS.frame * GS.speed * 0.5) % 80;
     ctx.setLineDash([40, 40]);
     ctx.lineDashOffset = dashOffset;
-    ctx.strokeStyle = '#1a1a1a';
+    ctx.strokeStyle = '#383838';
     ctx.lineWidth   = 1;
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y + 20);
