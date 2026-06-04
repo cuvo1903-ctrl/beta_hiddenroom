@@ -667,6 +667,11 @@ function attachSidebarListeners() {
       toggle.setAttribute('aria-expanded', String(open));
     });
   }
+
+  // Tap on the topbar context label also toggles the sidebar on mobile
+  document.querySelector('.db-topbar__context')?.addEventListener('click', () => {
+    toggle?.click();
+  });
 }
 
 
