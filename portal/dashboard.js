@@ -880,16 +880,6 @@ function renderOverview() {
               <div class="db-profile__roles" aria-label="Roles activos">
                 ${roleBadges}
               </div>
-              <div class="db-profile__actions" aria-label="Ajustes de cuenta">
-                <button type="button" class="db-profile-action" data-section="account-settings">
-                  <span class="db-icon db-icon--mail" aria-hidden="true"></span>
-                  <span>Cambia tu correo</span>
-                </button>
-                <button type="button" class="db-profile-action" data-section="account-settings">
-                  <span class="db-icon db-icon--settings" aria-hidden="true"></span>
-                  <span>Cambia tu contraseña</span>
-                </button>
-              </div>
             </div>
           </div>
         </article>
@@ -1905,6 +1895,7 @@ function renderPermissionUserRow(user) {
           </select>
           <button class="db-btn-secondary" type="submit">Agregar</button>
         </form>
+        <button class="db-btn-secondary" type="button" style="margin-top:4px" data-action="admin-user-edit" data-user-uuid="${escapeHTML(String(user.id))}">Editar usuario</button>
       </td>
     </tr>
   `;
@@ -1970,7 +1961,7 @@ async function renderAdminTableEditor() {
         <small id="js-admin-table-count" class="db-field__hint">${(data ?? []).length} filas cargadas</small>
       </label>
     </div>
-    ${tableName === 'users' ? '<p class="db-empty">Editar email aqui solo cambia public.users.email, no auth.users.</p>' : ''}
+    ${tableName === 'users' ? '<p class="db-empty">El campo email se guarda a través de Auth (Edge Function). El cambio se aplica al confirmar el correo.</p>' : ''}
     <div class="db-table-wrap">
       <table class="db-table db-table--editor" aria-label="Editor de ${escapeAttr(config.label)}">
         <thead>
@@ -2193,14 +2184,19 @@ async function handleAccountUpdate(form) {
     return;
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast('El formato del email no es valido.', 'error');
+    return;
+  }
+
   if (password || passwordConfirm) {
     if (password !== passwordConfirm) {
       showToast('Las contrasenas no coinciden.', 'error');
       return;
     }
 
-    if (password.length < 6) {
-      showToast('La contrasena debe tener al menos 6 caracteres.', 'error');
+    if (password.length < 8) {
+      showToast('La contrasena debe tener al menos 8 caracteres.', 'error');
       return;
     }
   }
@@ -2216,34 +2212,23 @@ async function handleAccountUpdate(form) {
     return;
   }
 
-  const authEmail = data?.user?.email ?? state.user.email;
-  const emailChangedInAuth = authEmail === email;
-
-  if (emailChangedInAuth) {
-    const { error: profileError } = await supabase
-      .from('users')
-      .update({ email })
-      .eq('id', state.user.id);
-
-    if (profileError) {
-      console.error('[HR] account profile sync:', profileError);
-      showToast('Auth actualizado, pero no se pudo sincronizar el perfil.', 'warning');
-    }
-  }
+  // NOTE: public.users.email is intentionally NOT updated here.
+  // A database trigger syncs auth.users.email → public.users.email automatically.
+  const confirmedImmediately = data?.user?.email === email;
 
   const nextUser = {
     ...state.user,
     ...(data?.user ?? {}),
-    email: emailChangedInAuth ? email : authEmail,
+    email: confirmedImmediately ? email : (state.user.email ?? email),
   };
 
   setState({ user: nextUser });
   hydrateTopbar();
   showToast(
-    emailChangedInAuth
-      ? 'Cuenta actualizada.'
-      : 'Revisa tu correo para confirmar el cambio de email.',
-    emailChangedInAuth ? 'success' : 'info'
+    confirmedImmediately
+      ? 'Cuenta actualizada correctamente.'
+      : 'Revisa tu correo para confirmar el cambio de email. El cambio se aplicará al confirmar.',
+    confirmedImmediately ? 'success' : 'info'
   );
   navigate('account-settings');
 }
@@ -2334,6 +2319,162 @@ async function handlePermissionRemove(permissionId) {
   navigate('erp-permissions');
 }
 
+/**
+ * Opens an inline modal to edit a user's profile + email as an admin.
+ * Email changes are routed through the "admin-update-user" Edge Function.
+ * @param {string} userUuid  auth.users.id / public.users.id
+ */
+function showAdminUserEditModal(userUuid) {
+  const users = state.data.permissionUsers ?? state.data.users ?? [];
+  const user = users.find((u) => String(u.id) === String(userUuid));
+  if (!user) { showToast('Usuario no encontrado.', 'error'); return; }
+
+  // Remove any previous modal
+  document.getElementById('js-admin-user-edit-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'js-admin-user-edit-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--db-bg,#1a1a1a);border:1px solid var(--db-border,#333);border-radius:8px;padding:24px;min-width:340px;max-width:480px;width:90%;">
+      <h2 style="margin:0 0 16px;font-size:1.1rem;">Editar usuario</h2>
+      <form id="js-admin-user-edit-form" class="db-form">
+        <input type="hidden" name="user_uuid" value="${escapeAttr(userUuid)}" />
+        <label class="db-field"><span>Display name</span>
+          <input name="display_name" value="${escapeAttr(user.display_name ?? '')}" />
+        </label>
+        <label class="db-field"><span>Username</span>
+          <input name="username" value="${escapeAttr(user.username ?? '')}" />
+        </label>
+        <label class="db-field"><span>WhatsApp</span>
+          <input name="whatsapp" value="${escapeAttr(user.whatsapp ?? '')}" />
+        </label>
+        <label class="db-field"><span>Avatar URL</span>
+          <input name="avatar_url" value="${escapeAttr(user.avatar_url ?? '')}" />
+        </label>
+        <label class="db-field"><span>Email (Auth)</span>
+          <input type="email" name="email" value="${escapeAttr(user.email ?? '')}" required />
+          <small style="color:var(--db-muted,#888)">Cambiar el email requiere confirmación del usuario. Se enruta via Edge Function.</small>
+        </label>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn-primary" type="submit">Guardar</button>
+          <button class="db-btn-secondary" type="button" id="js-admin-user-edit-cancel">Cancelar</button>
+        </div>
+        <div id="js-admin-user-edit-status" style="margin-top:8px;min-height:20px;font-size:.85rem;"></div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#js-admin-user-edit-cancel').addEventListener('click', () => overlay.remove());
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  overlay.querySelector('#js-admin-user-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const newEmail      = (fd.get('email') ?? '').trim();
+    const display_name  = (fd.get('display_name') ?? '').trim() || null;
+    const username      = (fd.get('username') ?? '').trim() || null;
+    const whatsapp      = (fd.get('whatsapp') ?? '').trim() || null;
+    const avatar_url    = (fd.get('avatar_url') ?? '').trim() || null;
+
+    const statusEl = overlay.querySelector('#js-admin-user-edit-status');
+    const submitBtn = overlay.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Guardando...';
+
+    const ok = await handleAdminUserUpdate(
+      user,
+      newEmail,
+      { display_name, username, whatsapp, avatar_url }
+    );
+
+    submitBtn.disabled = false;
+    if (ok) {
+      overlay.remove();
+      navigate('erp-permissions');
+    } else {
+      if (statusEl) statusEl.textContent = 'No se pudo guardar. Verifica los datos e intenta de nuevo.';
+    }
+  });
+}
+
+/**
+ * Admin update of a user's profile fields + email.
+ * Email is routed through the Edge Function "admin-update-user" which uses the
+ * service-role key server-side to update auth.users.email.
+ * The DB trigger then syncs auth.users.email → public.users.email automatically.
+ * All other profile fields are updated directly in public.users.
+ *
+ * @param {Object} selectedUser   Row from public.users (must have .id = auth UUID)
+ * @param {string} newEmail
+ * @param {Object} profileFields  Other editable public.users fields to save alongside
+ */
+async function handleAdminUserUpdate(selectedUser, newEmail, profileFields) {
+  if (!requireAdminMutation()) return false;
+
+  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    showToast('Email de administrador no valido.', 'error');
+    return false;
+  }
+
+  const emailChanged = newEmail !== (selectedUser.email ?? '');
+
+  // Route the email change (and profile fields) through the Edge Function.
+  // The Edge Function uses the service-role key, so we never expose it here.
+  if (emailChanged) {
+    try {
+      const { error: fnError } = await supabase.functions.invoke('admin-update-user', {
+        body: {
+          id: selectedUser.id,   // public.users.id = auth.users.id (UUID)
+          email: newEmail,
+          profile: {
+            display_name:  profileFields.display_name  ?? selectedUser.display_name  ?? null,
+            username:      profileFields.username      ?? selectedUser.username      ?? null,
+            whatsapp:      profileFields.whatsapp      ?? selectedUser.whatsapp      ?? null,
+            roles:         profileFields.roles         ?? selectedUser.roles         ?? null,
+            avatar_url:    profileFields.avatar_url    ?? selectedUser.avatar_url    ?? null,
+            user_id:       selectedUser.user_id        ?? null,
+          },
+        },
+      });
+
+      if (fnError) {
+        console.error('[HR] admin-update-user function:', fnError);
+        showToast(fnError.message || 'No se pudo actualizar el email del usuario.', 'error');
+        return false;
+      }
+
+      showToast('Usuario actualizado. El email se sincronizará tras confirmación.', 'success');
+      return true;
+
+    } catch (err) {
+      console.error('[HR] admin-update-user invoke error:', err);
+      showToast('Error al contactar la función de actualización.', 'error');
+      return false;
+    }
+  }
+
+  // Email not changed — update only the profile fields directly in public.users.
+  const { error: profileError } = await supabase
+    .from('users')
+    .update(profileFields)
+    .eq('id', selectedUser.id);
+
+  if (profileError) {
+    console.error('[HR] admin profile update:', profileError);
+    showToast('No se pudo actualizar el perfil.', 'error');
+    return false;
+  }
+
+  showToast('Perfil del usuario actualizado.', 'success');
+  return true;
+}
+
 async function handleAdminTableUpdate(form) {
   if (!requireAdminMutation()) return;
 
@@ -2359,6 +2500,57 @@ async function handleAdminTableUpdate(form) {
   config.editableFields.forEach((field) => {
     if (field in values) payload[field] = values[field];
   });
+
+  // public.users.email must be updated through auth.users via the Edge Function.
+  // The DB trigger then syncs auth.users.email → public.users.email automatically.
+  if (tableName === 'users' && 'email' in payload) {
+    const newEmail = payload.email ?? '';
+    delete payload.email; // never write email directly to public.users
+
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      showToast('El email no tiene un formato válido.', 'error');
+      return;
+    }
+
+    try {
+      const { error: fnError } = await supabase.functions.invoke('admin-update-user', {
+        body: {
+          id: original.id,   // public.users.id = auth.users.id (UUID) — NOT user_id
+          email: newEmail,
+          profile: {
+            display_name: payload.display_name ?? original.display_name ?? null,
+            username:     payload.username     ?? original.username     ?? null,
+            whatsapp:     payload.whatsapp     ?? original.whatsapp     ?? null,
+            avatar_url:   payload.avatar_url   ?? original.avatar_url   ?? null,
+            user_id:      original.user_id     ?? null,
+          },
+        },
+      });
+
+      if (fnError) {
+        console.error('[HR] table editor admin-update-user:', fnError);
+        showToast(fnError.message || 'No se pudo actualizar el email. Revisa la Edge Function.', 'error');
+        return;
+      }
+    } catch (err) {
+      console.error('[HR] table editor admin-update-user invoke:', err);
+      showToast('Error al contactar la función de actualización de email.', 'error');
+      return;
+    }
+
+    // If there are no other fields left to update, we're done.
+    if (Object.keys(payload).length === 0) {
+      showToast('Email actualizado vía Auth. Se sincronizará tras confirmación.', 'success');
+      navigate('admin-table-editor');
+      return;
+    }
+  }
+
+  // Update remaining non-email fields directly in public.users (or any other table).
+  if (Object.keys(payload).length === 0) {
+    showToast('Sin cambios que guardar.', 'info');
+    return;
+  }
 
   let query = supabase.from(tableName).update(payload);
 
@@ -2480,6 +2672,12 @@ function attachMainDelegation() {
       const btn = e.target.closest('[data-permission-id]');
       handlePermissionRemove(btn?.dataset.permissionId);
     }
+
+    if (action === 'admin-user-edit') {
+      const btn = e.target.closest('[data-user-uuid]');
+      const userUuid = btn?.dataset.userUuid;
+      if (userUuid) showAdminUserEditModal(userUuid);
+    }
   });
 
   main?.addEventListener('change', (e) => {
@@ -2568,6 +2766,213 @@ function attachMainDelegation() {
 
 
 /* ================================================================
+   Section 15a  ONBOARDING GATE
+   -------------------------------------------------------------
+   Non-bypassable modal shown when the logged-in user has:
+     a) An email ending in @hiddenroom.local (must be replaced)
+     b) A non-empty public.users.temp_password (must be changed)
+   Both conditions can be true simultaneously; the modal handles both.
+   temp_password is NEVER displayed, logged, or sent anywhere
+   other than the check above.
+================================================================ */
+
+/**
+ * Blocks the dashboard with a full-screen overlay until the user
+ * completes all required onboarding steps.
+ *
+ * @param {boolean} needsEmail    - Must replace @hiddenroom.local email
+ * @param {boolean} needsPassword - Must replace temporary password
+ * @returns {Promise<void>}       - Resolves only after success + reload
+ */
+function showOnboardingModal(needsEmail, needsPassword) {
+  return new Promise((resolve) => {
+    // Remove any previous instance
+    document.getElementById('js-onboarding-gate')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'js-onboarding-gate';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'onboarding-title');
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'background:rgba(0,0,0,.88)',
+      'z-index:99999',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'padding:16px',
+    ].join(';');
+
+    // Build the inner sections conditionally
+    const emailSection = needsEmail ? `
+      <section id="js-ob-email-section">
+        <h3 style="margin:0 0 8px;font-size:1rem;">Actualiza tu correo electrónico</h3>
+        <p style="margin:0 0 12px;font-size:.875rem;color:var(--db-muted,#aaa)">
+          Tu cuenta usa un correo temporal. Debes ingresar un correo real para continuar.
+        </p>
+        <label class="db-field">
+          <span>Nuevo correo electrónico</span>
+          <input id="js-ob-email" type="email" autocomplete="email" placeholder="nombre@ejemplo.com" required />
+        </label>
+        <div id="js-ob-email-error" style="color:#f87171;font-size:.8rem;min-height:18px;margin-top:4px;"></div>
+      </section>
+    ` : '';
+
+    const passwordSection = needsPassword ? `
+      <section id="js-ob-password-section" style="${needsEmail ? 'margin-top:20px;padding-top:20px;border-top:1px solid var(--db-border,#333);' : ''}">
+        <h3 style="margin:0 0 8px;font-size:1rem;">Establece una nueva contraseña</h3>
+        <p style="margin:0 0 12px;font-size:.875rem;color:var(--db-muted,#aaa)">
+          Tu cuenta tiene una contraseña temporal. Debes crear una nueva contraseña para continuar.
+        </p>
+        <label class="db-field">
+          <span>Nueva contraseña</span>
+          <input id="js-ob-password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required />
+        </label>
+        <label class="db-field" style="margin-top:10px;">
+          <span>Confirmar contraseña</span>
+          <input id="js-ob-password-confirm" type="password" autocomplete="new-password" placeholder="Repetir contraseña" required />
+        </label>
+        <div id="js-ob-password-error" style="color:#f87171;font-size:.8rem;min-height:18px;margin-top:4px;"></div>
+      </section>
+    ` : '';
+
+    overlay.innerHTML = `
+      <div style="background:var(--db-bg,#111);border:1px solid var(--db-border,#333);border-radius:10px;padding:28px 24px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;">
+        <h2 id="onboarding-title" style="margin:0 0 6px;font-size:1.2rem;">Configuración inicial requerida</h2>
+        <p style="margin:0 0 20px;font-size:.875rem;color:var(--db-muted,#aaa)">
+          Debes completar los siguientes pasos antes de acceder al panel.
+        </p>
+        ${emailSection}
+        ${passwordSection}
+        <div id="js-ob-status" style="min-height:18px;font-size:.85rem;margin-top:12px;"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+          <button id="js-ob-submit" class="btn-primary" type="button">Guardar y continuar</button>
+          <button id="js-ob-logout" class="db-btn-secondary" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Prevent any click on the backdrop from closing it
+    overlay.addEventListener('click', (e) => { e.stopPropagation(); });
+
+    // Logout button
+    overlay.querySelector('#js-ob-logout').addEventListener('click', () => {
+      supabase.auth.signOut().finally(() => { window.location.href = './'; });
+    });
+
+    // Submit button
+    overlay.querySelector('#js-ob-submit').addEventListener('click', async () => {
+      const statusEl  = overlay.querySelector('#js-ob-status');
+      const submitBtn = overlay.querySelector('#js-ob-submit');
+
+      // Clear previous errors
+      if (overlay.querySelector('#js-ob-email-error'))    overlay.querySelector('#js-ob-email-error').textContent    = '';
+      if (overlay.querySelector('#js-ob-password-error')) overlay.querySelector('#js-ob-password-error').textContent = '';
+      if (statusEl) statusEl.textContent = '';
+
+      // ── Validate email ───────────────────────────────────────────
+      let newEmail = null;
+      if (needsEmail) {
+        newEmail = (overlay.querySelector('#js-ob-email')?.value ?? '').trim();
+        const emailErrorEl = overlay.querySelector('#js-ob-email-error');
+        if (!newEmail) {
+          if (emailErrorEl) emailErrorEl.textContent = 'El correo no puede estar vacío.';
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+          if (emailErrorEl) emailErrorEl.textContent = 'El formato del correo no es válido.';
+          return;
+        }
+        if (newEmail.toLowerCase().endsWith('@hiddenroom.local')) {
+          if (emailErrorEl) emailErrorEl.textContent = 'Ingresa un correo real, no @hiddenroom.local.';
+          return;
+        }
+      }
+
+      // ── Validate password ────────────────────────────────────────
+      let newPassword = null;
+      if (needsPassword) {
+        newPassword         = overlay.querySelector('#js-ob-password')?.value ?? '';
+        const confirmPass   = overlay.querySelector('#js-ob-password-confirm')?.value ?? '';
+        const passErrorEl   = overlay.querySelector('#js-ob-password-error');
+        // Retrieve the stored temp_password only for comparison — never display it.
+        const tempPass      = state.user?.temp_password ?? '';
+
+        if (!newPassword) {
+          if (passErrorEl) passErrorEl.textContent = 'La contraseña no puede estar vacía.';
+          return;
+        }
+        if (newPassword.length < 8) {
+          if (passErrorEl) passErrorEl.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+          return;
+        }
+        if (tempPass && newPassword === tempPass) {
+          if (passErrorEl) passErrorEl.textContent = 'La nueva contraseña no puede ser igual a la contraseña temporal.';
+          return;
+        }
+        if (newPassword !== confirmPass) {
+          if (passErrorEl) passErrorEl.textContent = 'Las contraseñas no coinciden.';
+          return;
+        }
+      }
+
+      // ── Apply updates ────────────────────────────────────────────
+      submitBtn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Guardando...';
+
+      try {
+        // Build single auth.updateUser payload
+        const authPayload = {};
+        if (needsEmail)    authPayload.email    = newEmail;
+        if (needsPassword) authPayload.password = newPassword;
+
+        const { error: authError } = await supabase.auth.updateUser(authPayload);
+        if (authError) throw authError;
+
+        // If password changed, clear temp_password in public.users
+        if (needsPassword) {
+          const { error: clearTempError } = await supabase
+            .from('users')
+            .update({ temp_password: null })
+            .eq('id', state.user.id);
+
+          if (clearTempError) {
+            // Non-fatal: log quietly, don't expose to user
+            console.warn('[HR] onboarding: could not clear temp_password', clearTempError);
+          }
+        }
+
+        // NOTE: public.users.email intentionally NOT updated here;
+        // the DB trigger syncs it from auth.users.email automatically.
+
+        if (statusEl) {
+          statusEl.style.color = '#4ade80';
+          statusEl.textContent = needsEmail
+            ? 'Configuración guardada. Si Supabase requiere confirmación, revisa tu bandeja de entrada. Recargando...'
+            : 'Configuración guardada. Recargando...';
+        }
+
+        setTimeout(() => { window.location.reload(); }, 2200);
+        resolve();
+
+      } catch (err) {
+        console.error('[HR] onboarding gate update:', err);
+        submitBtn.disabled = false;
+        if (statusEl) {
+          statusEl.style.color = '#f87171';
+          statusEl.textContent = err.message || 'No se pudo guardar. Intenta de nuevo.';
+        }
+      }
+    });
+  });
+}
+
+
+/* ================================================================
    Section 15  INIT
 ================================================================ */
 
@@ -2594,6 +2999,20 @@ async function init() {
   attachMainDelegation();
 
   await loadAndRenderNotifications();
+
+  // ── Onboarding gate ──────────────────────────────────────────────
+  // Check if the user needs to complete mandatory onboarding steps
+  // before they can access the dashboard.
+  const needsEmailReplacement = (state.user?.email ?? '').toLowerCase().endsWith('@hiddenroom.local');
+  // NOTE: temp_password is only read once here for the gate check, never displayed or logged.
+  const hasTempPassword = Boolean(state.user?.temp_password);
+
+  if (needsEmailReplacement || hasTempPassword) {
+    await showOnboardingModal(needsEmailReplacement, hasTempPassword);
+    // showOnboardingModal only resolves after both required steps are done.
+    return; // init() re-runs after reload inside the modal on success.
+  }
+  // ── End onboarding gate ──────────────────────────────────────────
 
   navigate('overview');
 }
