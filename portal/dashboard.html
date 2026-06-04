@@ -3,7 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Portal — Hidden Room / Mysauth</title>
+  <meta name="description" content="La Casa del Under">
+  <meta property="og:title" content="Hidden Room">
+  <meta property="og:description" content="La Casa del Under">
+  <meta property="og:image" content="https://hiddenroom.mx/assets/img/social-preview.webp">
+  <meta property="og:url" content="https://hiddenroom.mx/portal/dashboard.html">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hidden Room">
+  <meta name="twitter:description" content="La Casa del Under">
+  <meta name="twitter:image" content="https://hiddenroom.mx/assets/img/social-preview.webp">
+  <title>Hidden Room</title>
+
+  <link rel="icon" type="image/webp" href="/assets/img/black_logo.webp" media="(prefers-color-scheme: light)" />
+  <link rel="icon" type="image/webp" href="/assets/img/white_logo.webp" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/webp" href="/assets/img/white_logo.webp" />
 
   <!-- Global design system -->
   <link rel="stylesheet" href="../styles.css" />
@@ -31,7 +45,7 @@
   <header class="db-topbar" role="banner">
 
     <div class="db-topbar__brand">
-      <a href="../index.html" class="db-topbar__logo" aria-label="Hidden Room — Home">
+      <a href="/" class="db-topbar__logo" aria-label="Hidden Room — Home">
         <img src="../assets/img/white_logo.webp" alt="Hidden Room" class="db-logo-img" />
       </a>
       <span class="db-topbar__divider" aria-hidden="true"></span>
@@ -44,6 +58,11 @@
     </div>
 
     <div class="db-topbar__actions">
+      <!-- Sidebar toggle (mobile) -->
+      <button class="db-sidebar__toggle" id="js-sidebar-toggle" aria-label="Abrir menú lateral" aria-expanded="false" aria-controls="js-sidebar">
+        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
+      </button>
+
       <!-- Notification bell -->
       <button
         class="db-topbar__icon-btn"
@@ -88,11 +107,6 @@
     ──────────────────────────────────────────────── -->
     <aside class="db-sidebar" id="js-sidebar" aria-label="Navegación del portal">
 
-      <!-- Sidebar toggle (mobile) -->
-      <button class="db-sidebar__toggle" id="js-sidebar-toggle" aria-label="Abrir menú lateral" aria-expanded="false" aria-controls="js-sidebar">
-        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
-      </button>
-
       <nav class="db-sidebar__nav" aria-label="Módulos">
 
         <!-- ── ALWAYS VISIBLE ─────────────────────── -->
@@ -106,7 +120,7 @@
               aria-current="page"
             >
               <span class="db-icon db-icon--grid"   aria-hidden="true"></span>
-              <span class="db-sidebar__item-text">Overview</span>
+              <span class="db-sidebar__item-text">Inicio</span>
             </button>
           </li>
         </ul>
@@ -140,6 +154,12 @@
             </button>
           </li>
           <li>
+            <button class="db-sidebar__item" data-section="client-membership">
+              <span class="db-icon db-icon--star" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">Membresía</span>
+            </button>
+          </li>
+          <li>
             <button class="db-sidebar__item" data-section="client-tickets">
               <span class="db-icon db-icon--ticket" aria-hidden="true"></span>
               <span class="db-sidebar__item-text">Tickets</span>
@@ -154,7 +174,7 @@
           <li>
             <button class="db-sidebar__item" data-section="client-rewards">
               <span class="db-icon db-icon--star" aria-hidden="true"></span>
-              <span class="db-sidebar__item-text">Rewards</span>
+              <span class="db-sidebar__item-text">Premios</span>
             </button>
           </li>
         </ul>
@@ -197,7 +217,7 @@
 
         <!-- ── ROLE: rrpp ─────────────────────────── -->
         <ul class="db-sidebar__group" role="list" data-role-gate="pr" hidden>
-          <li class="db-sidebar__label" aria-hidden="true">Relaciones Públicas</li>
+          <li class="db-sidebar__label" aria-hidden="true">Embajador</li>
 
           <li>
             <button class="db-sidebar__item" data-section="rrpp-contacts">
@@ -220,7 +240,7 @@
           <li>
             <button class="db-sidebar__item" data-section="rrpp-guestlist">
               <span class="db-icon db-icon--list" aria-hidden="true"></span>
-              <span class="db-sidebar__item-text">Guest Lists</span>
+              <span class="db-sidebar__item-text">Lista de invitados</span>
             </button>
           </li>
           <li>
@@ -253,13 +273,19 @@
               <span class="db-sidebar__item-text">Permisos</span>
             </button>
           </li>
+          <li>
+            <button class="db-sidebar__item" data-section="admin-table-editor">
+              <span class="db-icon db-icon--settings" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">BB.DD</span>
+            </button>
+          </li>
         </ul>
 
       </nav>
 
       <!-- Sidebar footer: version stamp -->
       <footer class="db-sidebar__footer" aria-label="Meta del sistema">
-        <span class="db-sidebar__version" id="js-build-stamp">BETA - desde Mysauth OS/ERP - Sitio en construcción V. 0.3.0</span>
+        <span class="db-sidebar__version" id="js-build-stamp">Una Marca de Grupo Mysauth - <span class="site-status"></span> <span class="site-version"></span></span>
       </footer>
 
     </aside>
@@ -339,14 +365,14 @@
       if (!ring) return;
 
       document.addEventListener('mouseenter', (e) => {
-        if (e.target.closest('a, button, [role="button"], .event-row')) {
+        if (e.target?.closest?.('a, button, [role="button"], .event-row')) {
           ring.style.scale       = '1.5';
           ring.style.borderColor = 'rgba(219,1,0,0.8)';
         }
       }, true);
 
       document.addEventListener('mouseleave', (e) => {
-        if (e.target.closest('a, button, [role="button"], .event-row')) {
+        if (e.target?.closest?.('a, button, [role="button"], .event-row')) {
           ring.style.scale       = '1';
           ring.style.borderColor = 'rgba(219,1,0,0.5)';
         }

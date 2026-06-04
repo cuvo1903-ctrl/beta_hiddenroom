@@ -14,7 +14,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>flappy ñero</title>
+  <meta name="description" content="La Casa del Under">
+  <meta property="og:title" content="Hidden Room">
+  <meta property="og:description" content="La Casa del Under">
+  <meta property="og:image" content="https://hiddenroom.mx/assets/img/social-preview.webp">
+  <meta property="og:url" content="https://hiddenroom.mx/minijuegos/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hidden Room">
+  <meta name="twitter:description" content="La Casa del Under">
+  <meta name="twitter:image" content="https://hiddenroom.mx/assets/img/social-preview.webp">
+  <title>Hidden Room</title>
+  <link rel="icon" type="image/webp" href="/assets/img/black_logo.webp" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/webp" href="/assets/img/white_logo.webp" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/webp" href="/assets/img/white_logo.webp">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="game.css">
 </head>
@@ -56,12 +69,15 @@
     <div class="screen-stat">puntos &nbsp;<strong id="goScore">0</strong></div>
     <div class="screen-stat">record &nbsp;&nbsp;<strong id="goBest">0</strong></div>
     <div class="screen-stat" id="goCoupons" style="color:var(--coupon)"></div>
+    <div class="screen-stat" id="goSaveStatus"></div>
+    <button class="btn hidden" id="saveScoreBtn">GUARDAR PUNTAJE</button>
     <button class="btn" id="restartBtn">vuelve a jugar</button>
   </div>
 
   <div id="tap-hint">activa tu audio pa mejor experiencia</div>
 </div>
 
-<script src="endless_edomex.js"></script>
+<script src="../site.js"></script>
+<script type="module" src="endless_edomex.js"></script>
 </body>
 </html>

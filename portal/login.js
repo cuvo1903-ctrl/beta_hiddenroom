@@ -5,6 +5,20 @@ const supabase = createClient(
   "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO"
 );
 
+const getSafeRedirect = () => {
+  const fallback = "./dashboard.html";
+  const returnTo = sessionStorage.getItem("hr_return_after_login");
+  if (!returnTo) return fallback;
+
+  sessionStorage.removeItem("hr_return_after_login");
+  return returnTo.startsWith("../minijuegos/") ? returnTo : fallback;
+};
+
+const { data: { session } } = await supabase.auth.getSession();
+if (session) {
+  window.location.href = getSafeRedirect();
+}
+
 const form = document.getElementById("login-form");
 
 form.addEventListener("submit", async (e) => {
@@ -26,5 +40,5 @@ form.addEventListener("submit", async (e) => {
   // guardar sesión simple (opcional)
   localStorage.setItem("session", JSON.stringify(data.session));
 
-  window.location.href = "./dashboard.html";
+  window.location.href = getSafeRedirect();
 });

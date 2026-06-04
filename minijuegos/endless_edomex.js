@@ -24,6 +24,18 @@
 /* ----------------------------------------------------------------
    CONFIG — tweak everything from here
 ---------------------------------------------------------------- */
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const supabase = createClient(
+  "https://rpcunbkstadgngqrjafp.supabase.co",
+  "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO"
+);
+
+const GAME_ID = 'flappy-nero';
+const SCORE_TYPE = 'record';
+const LOCAL_BEST_KEY = 'dem00nz_best';
+const LOGIN_RETURN_KEY = 'hr_return_after_login';
+
 const CONFIG = {
   // Physics
   GRAVITY:          0.55,
@@ -220,7 +232,12 @@ const GS = {
   running:       false,
   over:          false,
   score:         0,
-  best:          parseInt(localStorage.getItem('dem00nz_best') || '0'),
+  best:          parseInt(localStorage.getItem(LOCAL_BEST_KEY) || '0'),
+  remoteBest:    0,
+  scoreRowId:    null,
+  profile:       null,
+  authUser:      null,
+  saveStatus:    '',
   couponsEarned: 0,
   lives:         CONFIG.MAX_LIVES,
   speed:         CONFIG.BASE_SPEED,
@@ -238,10 +255,119 @@ const Score = {
   saveBest() {
     if (GS.score > GS.best) {
       GS.best = GS.score;
-      localStorage.setItem('dem00nz_best', GS.best);
+      localStorage.setItem(LOCAL_BEST_KEY, GS.best);
     }
   },
 };
+
+async function loadScoreAccount() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  GS.authUser = user;
+
+  const { data: profile, error } = await supabase
+    .from('users')
+    .select('id, user_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error || !profile?.user_id) {
+    console.info('[HR game] profile unavailable:', error?.message);
+    return null;
+  }
+
+  GS.profile = profile;
+  return profile;
+}
+
+async function loadRemoteBest() {
+  if (!GS.profile?.user_id) return null;
+
+  const { data, error } = await supabase
+    .from('scores')
+    .select('id, amount')
+    .eq('user_id', GS.profile.user_id)
+    .eq('game_id', GAME_ID)
+    .eq('type', SCORE_TYPE)
+    .order('amount', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.info('[HR game] remote score unavailable:', error.message);
+    return null;
+  }
+
+  GS.scoreRowId = data?.id ?? null;
+  GS.remoteBest = Number(data?.amount ?? 0);
+  return GS.remoteBest;
+}
+
+async function syncBestWithAccount() {
+  const profile = await loadScoreAccount();
+  if (!profile) return false;
+
+  const remoteBest = await loadRemoteBest();
+  if (remoteBest === null) return false;
+
+  return syncBestSources(remoteBest);
+}
+
+async function syncBestSources(remoteBest = GS.remoteBest) {
+  const localBest = Number(localStorage.getItem(LOCAL_BEST_KEY) || GS.best || 0);
+  const mergedBest = Math.max(localBest, remoteBest);
+
+  GS.best = mergedBest;
+  localStorage.setItem(LOCAL_BEST_KEY, String(mergedBest));
+  HUD.update();
+
+  if (localBest > remoteBest) {
+    return saveBestToSupabase(localBest);
+  }
+
+  GS.remoteBest = Number(remoteBest || 0);
+  return true;
+}
+
+async function saveBestToSupabase(amount = GS.best) {
+  if (!GS.profile?.user_id) return false;
+  if (Number(amount) <= Number(GS.remoteBest || 0)) return true;
+
+  const payload = {
+    game_id: GAME_ID,
+    user_id: GS.profile.user_id,
+    type: SCORE_TYPE,
+    amount: Number(amount),
+  };
+
+  const { data, error } = GS.scoreRowId
+    ? await supabase
+        .from('scores')
+        .update({ amount: payload.amount })
+        .eq('id', GS.scoreRowId)
+        .select('id, amount')
+        .single()
+    : await supabase
+        .from('scores')
+        .insert(payload)
+        .select('id, amount')
+        .single();
+
+  if (error) {
+    console.info('[HR game] save score failed:', error.message);
+    return false;
+  }
+
+  GS.scoreRowId = data?.id ?? GS.scoreRowId;
+  GS.remoteBest = Number(data?.amount ?? amount);
+  return true;
+}
+
+function goToLoginForScore() {
+  sessionStorage.setItem(LOGIN_RETURN_KEY, '../minijuegos/');
+  window.location.href = '../portal/';
+}
 
 /* ----------------------------------------------------------------
    HUD — DOM updates batched via a dirty flag so we don't touch
@@ -1035,6 +1161,8 @@ const Screens = {
   goScore:  document.getElementById('goScore'),
   goBest:   document.getElementById('goBest'),
   goCoupons:document.getElementById('goCoupons'),
+  goSaveStatus: document.getElementById('goSaveStatus'),
+  saveScoreBtn: document.getElementById('saveScoreBtn'),
   tapHint:  document.getElementById('tap-hint'),
 
   showStart() {
@@ -1047,6 +1175,10 @@ const Screens = {
     this.goCoupons.textContent = GS.couponsEarned
       ? `★ CUPONES CONSEGUIDOS (mandanos ss a wpp): ${GS.couponsEarned}`
       : '';
+    this.goSaveStatus.textContent = GS.saveStatus || (GS.profile
+      ? 'record sincronizado con tu cuenta'
+      : 'inicia sesion para guardar tu record');
+    this.saveScoreBtn.classList.toggle('hidden', Boolean(GS.profile));
     this.gameOver.classList.remove('hidden');
     this.start.classList.add('hidden');
   },
@@ -1067,6 +1199,7 @@ function startGame() {
   GS.speed         = CONFIG.BASE_SPEED;
   GS.frame         = 0;
   GS.invincible    = false;
+  GS.saveStatus    = '';
   GS.couponsEarned = 0;
 
   Background.init();
@@ -1106,8 +1239,58 @@ function gameOver() {
   GS.running = false;
   GS.over    = true;
   Score.saveBest();
+  saveGameOverScore();
   SoundSystem.play('game_over');
   setTimeout(() => Screens.showGameOver(), 500);
+}
+
+async function saveGameOverScore() {
+  if (!GS.profile) {
+    await loadScoreAccount();
+    if (GS.profile) await loadRemoteBest();
+  }
+
+  if (!GS.profile) {
+    GS.saveStatus = 'inicia sesion para guardar tu record';
+    return;
+  }
+
+  const localBest = Number(localStorage.getItem(LOCAL_BEST_KEY) || GS.best || 0);
+  const remoteBest = Number(GS.remoteBest || 0);
+
+  if (remoteBest > localBest) {
+    GS.best = remoteBest;
+    localStorage.setItem(LOCAL_BEST_KEY, String(remoteBest));
+    HUD.update();
+    if (Screens.goBest) Screens.goBest.textContent = GS.best;
+    GS.saveStatus = 'record sincronizado con tu cuenta';
+    return;
+  }
+
+  if (localBest <= remoteBest) {
+    GS.best = remoteBest;
+    localStorage.setItem(LOCAL_BEST_KEY, String(remoteBest));
+    HUD.update();
+    if (Screens.goBest) Screens.goBest.textContent = GS.best;
+    GS.saveStatus = 'record sincronizado con tu cuenta';
+    return;
+  }
+
+  GS.saveStatus = 'guardando record...';
+  if (Screens.goSaveStatus) Screens.goSaveStatus.textContent = GS.saveStatus;
+
+  GS.best = localBest;
+  HUD.update();
+  if (Screens.goBest) Screens.goBest.textContent = GS.best;
+
+  const saved = await saveBestToSupabase(localBest);
+  GS.saveStatus = saved
+    ? 'nuevo record guardado'
+    : 'no se pudo guardar el record';
+
+  if (Screens.goSaveStatus && !Screens.gameOver.classList.contains('hidden')) {
+    Screens.goSaveStatus.textContent = GS.saveStatus;
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -1186,12 +1369,14 @@ const Input = {
     // Buttons — touchend fires once on mobile; click covers desktop
     const startBtn   = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
+    const saveScoreBtn = document.getElementById('saveScoreBtn');
 
     const btnTouch = (e) => { e.preventDefault(); playIntroOnce(); startGame(); };
     startBtn.addEventListener('touchend',   btnTouch, { passive: false });
     restartBtn.addEventListener('touchend', btnTouch, { passive: false });
     startBtn.addEventListener('click',   () => { SoundSystem.unlock(); startGame(); });
     restartBtn.addEventListener('click', () => { SoundSystem.unlock(); startGame(); });
+    saveScoreBtn?.addEventListener('click', goToLoginForScore);
   },
 
   action() {
@@ -1208,6 +1393,9 @@ const Input = {
 ---------------------------------------------------------------- */
 Input.init();
 Background.init();
+syncBestWithAccount().catch((error) => {
+  console.info('[HR game] score sync skipped:', error);
+});
 
 // Desktop: attempt autoplay immediately.
 // iOS: will silently fail; intro plays on first user gesture (Input.init).

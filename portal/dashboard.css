@@ -552,6 +552,35 @@
   gap: var(--space-sm);
 }
 
+.db-profile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.db-profile-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: color-mix(in srgb, var(--coupon) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--coupon) 45%, transparent);
+  color: var(--coupon);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  transition: var(--transition-color);
+}
+
+.db-profile-action:hover {
+  background: var(--coupon);
+  border-color: var(--coupon);
+  color: var(--black);
+}
+
 
 /* ================================================================
    11. QUICK ACTIONS
@@ -823,6 +852,12 @@
   color: var(--white-faint);
 }
 
+.db-user-picker__empty {
+  color: var(--white-dim);
+  font-size: var(--text-xs);
+  padding: var(--space-sm);
+}
+
 .db-table--permissions select,
 .db-inline-form select {
   min-height: 36px;
@@ -866,6 +901,45 @@
   font: inherit;
   line-height: 1;
   padding: 0;
+}
+
+.db-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: end;
+  margin-bottom: var(--space-lg);
+}
+
+.db-field--compact {
+  min-width: 220px;
+}
+
+.db-field--search {
+  min-width: min(100%, 320px);
+}
+
+.db-field__hint {
+  color: var(--white-dim);
+  font-size: var(--text-xs);
+}
+
+.db-table-input,
+.db-toolbar input,
+.db-toolbar select {
+  min-height: 36px;
+  width: 100%;
+  min-width: 160px;
+  background: var(--near-black);
+  border: var(--border-subtle);
+  color: var(--white-dim);
+  font: inherit;
+  padding: var(--space-sm);
+}
+
+.db-table--editor code {
+  color: var(--white-faint);
+  font-size: var(--text-xs);
 }
 
 
@@ -1035,38 +1109,6 @@
 /* ================================================================
    15. STAT CARDS
 ================================================================ */
-.db-stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-md);
-  margin-top: var(--space-xl);
-}
-
-.db-stat-card {
-  background: var(--surface);
-  border: var(--border-subtle);
-  padding: var(--space-xl) var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.db-stat-card__value {
-  font-family: var(--font-display);
-  font-size: clamp(24px, 3vw, 36px);
-  font-weight: 900;
-  color: var(--white);
-  letter-spacing: var(--tracking-tight);
-  line-height: 1;
-}
-
-.db-stat-card__label {
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-  color: var(--white-faint);
-}
-
 
 /* ================================================================
    16. SKELETON LOADER
@@ -1105,17 +1147,15 @@
   color: var(--white-faint);
 }
 
-/* Icon font placeholder — replace with SVG sprite or icon font */
+/* Icon placeholder: replace later with SVG sprite or icon font. */
 .db-icon {
   display: inline-block;
-  width: 16px;
-  height: 16px;
-  background: var(--white-dim);
-  /* Mask-image approach for SVG icons:
-     -webkit-mask-image: url(../assets/icons.svg#bell);
-             mask-image: url(../assets/icons.svg#bell);
-     Until icons are set up, shows a subtle square. */
-  opacity: 0.5;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px var(--white-ghost);
+  opacity: 0.7;
   flex-shrink: 0;
 }
 
@@ -1253,14 +1293,11 @@
 
   .db-sidebar__toggle {
     display: flex;
-    position: fixed;
-    top: 64px;
-    left: var(--space-md);
-    z-index: var(--z-nav);
     background: var(--surface);
     border: var(--border-subtle);
     color: var(--white-dim);
     width: 36px; height: 36px;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     cursor: pointer;
@@ -1309,7 +1346,4 @@
     font-size: clamp(22px, 8vw, 36px);
   }
 
-  .db-stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }

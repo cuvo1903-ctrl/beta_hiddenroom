@@ -1,6 +1,6 @@
 ﻿/**
  * ================================================================
- *  HIDDEN ROOM / MYSAUTH â€” Dashboard Controller
+ *  HIDDEN ROOM / MYSAUTH - Dashboard Controller
  *  portal/dashboard.js
  * ================================================================
  *  Architecture: lightweight SPA router over a static HTML shell.
@@ -8,20 +8,20 @@
  *
  *  Responsibilities:
  *    1. Session bootstrap (Supabase auth)
- *    2. Role-composable sidebar gating  â† cumulative hierarchy
+ *    2. Role-composable sidebar gating  <- cumulative hierarchy
  *    3. Client-side section router (hash-free, state-driven)
  *    4. Per-module render functions (one per section)
  *    5. Notification + toast system
- *    6. Global state object  â† single source of truth
+ *    6. Global state object  <- single source of truth
  * ================================================================
  */
 
 'use strict';
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§1  SUPABASE CLIENT
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 1  SUPABASE CLIENT
+================================================================ */
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
@@ -31,9 +31,9 @@ const supabase = createClient(
 );
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§2  GLOBAL STATE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 2  GLOBAL STATE
+================================================================ */
 
 const state = {
   /** @type {Object|null} Full public.users profile merged with auth user */
@@ -64,6 +64,9 @@ const state = {
 
   /** Whether the sidebar is open on mobile */
   sidebarOpen: false,
+
+  /** Monotonic render guard for async section transitions */
+  renderToken: 0,
 };
 
 /**
@@ -75,18 +78,18 @@ function setState(patch) {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§3  ROLE ENGINE
-   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ================================================================
+   Section 3  ROLE ENGINE
+   -------------------------------------------------------------
    Hierarchy (cumulative, bottom roles inherit all above):
      client = 1
      pr     = 2
      collaborator = 3
      partner = 4
      admin  = 5
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+================================================================ */
 
-/** Ordered hierarchy â€” index = level (0-based, lower = less access) */
+/** Ordered hierarchy - index = level (0-based, lower = less access) */
 const ROLE_HIERARCHY = ['client', 'pr', 'collaborator', 'partner', 'admin'];
 
 /**
@@ -94,10 +97,10 @@ const ROLE_HIERARCHY = ['client', 'pr', 'collaborator', 'partner', 'admin'];
  * "collaborator") and returns the full cumulative set of roles the user has.
  *
  * Examples:
- *   expandRoles("admin")       â†’ ['client','pr','collaborator','partner','admin']
- *   expandRoles("collaborator") â†’ ['client','pr','collaborator']
- *   expandRoles("client,pr")   â†’ ['client','pr']   (already cumulative, safe)
- *   expandRoles("client")      â†’ ['client']
+ *   expandRoles("admin")       -> ['client','pr','collaborator','partner','admin']
+ *   expandRoles("collaborator") -> ['client','pr','collaborator']
+ *   expandRoles("client,pr")   -> ['client','pr']   (already cumulative, safe)
+ *   expandRoles("client")      -> ['client']
  *
  * @param {string|null|undefined} rawRoles  Value of public.users.roles field
  * @returns {string[]}
@@ -123,7 +126,7 @@ function expandRoles(rawRoles) {
 }
 
 /**
- * Returns true if the user has the given role (cumulative â€” higher roles
+ * Returns true if the user has the given role (cumulative - higher roles
  * automatically include all lower ones).
  * @param {string} role
  */
@@ -181,25 +184,30 @@ function applyRoleGates() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§4  SECTION REGISTRY
-   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   Maps section key â†’ { label, roleRequired, render }
+/* ================================================================
+   Section 4  SECTION REGISTRY
+   -------------------------------------------------------------
+   Maps section key -> { label, roleRequired, render }
    roleRequired uses the cumulative hasRole() check.
-   render() is always treated as async â€” may return a string or
+   render() is always treated as async - may return a string or
    a Promise<string>. renderSection() awaits it either way.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+================================================================ */
 
 const SECTIONS = {
 
-  /* â”€â”€ CORE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- CORE -------------------------------------------- */
   overview: {
-    label: 'Overview',
+    label: 'Inicio',
     roleRequired: null,
     render: renderOverview,
   },
+  'account-settings': {
+    label: 'Ajustes de Cuenta',
+    roleRequired: null,
+    render: renderAccountSettings,
+  },
 
-  /* â”€â”€ CLIENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- CLIENT ------------------------------------------ */
   'client-downloads': {
     label: 'Descargas',
     roleRequired: 'client',
@@ -220,6 +228,11 @@ const SECTIONS = {
     roleRequired: 'client',
     render: renderClientContracts,
   },
+  'client-membership': {
+    label: 'Membresía',
+    roleRequired: 'client',
+    render: renderClientMembership,
+  },
   'client-tickets': {
     label: 'Tickets de Evento',
     roleRequired: 'client',
@@ -231,12 +244,12 @@ const SECTIONS = {
     render: renderClientStore,
   },
   'client-rewards': {
-    label: 'Rewards',
+    label: 'Premios',
     roleRequired: 'client',
     render: renderClientRewards,
   },
 
-  /* â”€â”€ COLLABORATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- COLLABORATOR ------------------------------------- */
   'collab-docs': {
     label: 'Documentos',
     roleRequired: 'collaborator',
@@ -254,7 +267,7 @@ const SECTIONS = {
     render: renderCollabLog,
   },
 
-  /* â”€â”€ MEDIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- MEDIA -------------------------------------------- */
   'media-posts': {
     label: 'Posts / Vlog',
     roleRequired: null,
@@ -262,7 +275,7 @@ const SECTIONS = {
     render: renderMediaPosts,
   },
 
-  /* â”€â”€ RRPP (pr role) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- RRPP (pr role) ----------------------------------- */
   'rrpp-contacts': {
     label: 'Contactos',
     roleRequired: 'pr',
@@ -274,12 +287,12 @@ const SECTIONS = {
     render: renderRrppInvitations,
   },
   'rrpp-campaigns': {
-    label: 'CampaÃ±as',
+    label: 'Campañas',
     roleRequired: 'pr',
     render: renderRrppCampaigns,
   },
   'rrpp-guestlist': {
-    label: 'Guest Lists',
+    label: 'Lista de invitados',
     roleRequired: 'pr',
     render: renderRrppGuestlist,
   },
@@ -289,7 +302,7 @@ const SECTIONS = {
     render: renderRrppBenefits,
   },
 
-  /* â”€â”€ ERP / ADMIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* -- ERP / ADMIN -------------------------------------- */
   'erp-finance': {
     label: 'Finanzas',
     roleRequired: 'admin',
@@ -305,6 +318,11 @@ const SECTIONS = {
     roleRequired: 'admin',
     render: renderErpPermissions,
   },
+  'admin-table-editor': {
+    label: 'BB.DD',
+    roleRequired: 'admin',
+    render: renderAdminTableEditor,
+  },
 };
 
 const SCRUM_COLUMNS = [
@@ -316,6 +334,7 @@ const SCRUM_COLUMNS = [
 
 const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const AVAILABLE_ROLES = ['client', 'pr', 'collaborator', 'partner', 'admin'];
+const SECTION_LOADING_MIN_MS = 300;
 const SUGGESTED_PERMISSIONS = [
   'scrum.view',
   'scrum.edit',
@@ -324,6 +343,116 @@ const SUGGESTED_PERMISSIONS = [
   'media.posts',
   'rrpp.manage',
 ];
+
+const ADMIN_TABLE_FETCH_SIZE = 1000;
+
+const TABLE_EDITOR_CONFIG = {
+  users: {
+    label: 'Usuarios',
+    primaryKey: 'id',
+    select: 'id, user_id, display_name, email, whatsapp, avatar_url, username, roles',
+    lockedFields: ['id', 'user_id', 'roles'],
+    editableFields: ['display_name', 'email', 'whatsapp', 'avatar_url', 'username'],
+  },
+  transactions: {
+    label: 'Transacciones',
+    primaryKey: 'id',
+    select: 'id, user_id, type, concept, date, amount, via, username, id_trans, notes',
+    lockedFields: ['id'],
+    editableFields: ['user_id', 'type', 'concept', 'date', 'amount', 'via', 'username', 'id_trans', 'notes'],
+  },
+  sessions: {
+    label: 'Sesiones',
+    primaryKey: 'id',
+    select: 'id, session_date, concept, user_id, status, type, notes, username, assistance, hour, start, end, cost, promo',
+    lockedFields: ['id'],
+    editableFields: ['session_date', 'concept', 'user_id', 'status', 'type', 'notes', 'username', 'assistance', 'hour', 'start', 'end', 'cost', 'promo'],
+  },
+  scores: {
+    label: 'Scores',
+    primaryKey: 'id',
+    select: 'id, game_id, user_id, type, amount',
+    lockedFields: ['id'],
+    editableFields: ['game_id', 'user_id', 'type', 'amount'],
+  },
+  downloads: {
+    label: 'Descargas',
+    primaryKey: null,
+    select: 'user_id, name, storage_path, notes, type',
+    lockedFields: [],
+    editableFields: ['user_id', 'name', 'storage_path', 'notes', 'type'],
+    matchFields: ['user_id', 'name', 'storage_path'],
+  },
+  rewards: {
+    label: 'Recompensas',
+    primaryKey: 'id',
+    select: 'id, user_id, concept',
+    lockedFields: ['id'],
+    editableFields: ['user_id', 'concept'],
+  },
+};
+
+async function fetchAllTableEditorRows(tableName, select) {
+  const rows = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select(select)
+      .range(from, from + ADMIN_TABLE_FETCH_SIZE - 1);
+
+    if (error) throw error;
+
+    rows.push(...(data ?? []));
+
+    if (!data || data.length < ADMIN_TABLE_FETCH_SIZE) break;
+    from += ADMIN_TABLE_FETCH_SIZE;
+  }
+
+  return rows;
+}
+
+function sortTableEditorRows(rows, field, direction = 'asc') {
+  const multiplier = direction === 'desc' ? -1 : 1;
+
+  return [...rows].sort((a, b) => {
+    const left = normalizeTableSortValue(a?.[field]);
+    const right = normalizeTableSortValue(b?.[field]);
+
+    if (left.empty && right.empty) return 0;
+    if (left.empty) return 1;
+    if (right.empty) return -1;
+
+    if (left.type === 'number' && right.type === 'number') {
+      return (left.value - right.value) * multiplier;
+    }
+
+    return String(left.value).localeCompare(String(right.value), 'es', {
+      numeric: true,
+      sensitivity: 'base',
+    }) * multiplier;
+  });
+}
+
+function normalizeTableSortValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return { empty: true, type: 'string', value: '' };
+  }
+
+  const raw = String(value).trim();
+  const numeric = Number(raw);
+  if (raw !== '' && Number.isFinite(numeric)) {
+    return { empty: false, type: 'number', value: numeric };
+  }
+
+  const timestamp = Date.parse(raw);
+  if (Number.isFinite(timestamp) && /\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return { empty: false, type: 'number', value: timestamp };
+  }
+
+  return { empty: false, type: 'string', value: raw };
+}
 
 const userLabel = (userId) => {
   const user = (state.data.users ?? []).find((u) => String(u.user_id) === String(userId));
@@ -334,16 +463,16 @@ const userLabel = (userId) => {
 const usernameLabel = (user) => user?.username ? `@${user.username}` : '@sin_username';
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§5  SESSION BOOTSTRAP
-   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ================================================================
+   Section 5  SESSION BOOTSTRAP
+   -------------------------------------------------------------
    Auth flow:
-     1. supabase.auth.getUser()  â†’ auth user (auth.users.id)
-     2. public.users WHERE id = auth.id  â†’ full profile
-     3. public.users.user_id  â†’ internal operational ID used in
+     1. supabase.auth.getUser()  -> auth user (auth.users.id)
+     2. public.users WHERE id = auth.id  -> full profile
+     3. public.users.user_id  -> internal operational ID used in
         transactions / sessions / downloads / contracts / scores
-     4. user_permissions WHERE user_id = auth.id  â†’ permission keys
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+     4. user_permissions WHERE user_id = auth.id  -> permission keys
+================================================================ */
 
 /**
  * Loads session from Supabase auth, fetches the public profile and
@@ -356,7 +485,7 @@ async function bootstrapSession() {
 
     if (!authUser) return null;
 
-    // Fetch public profile â€” join key is public.users.id = auth.users.id
+    // Fetch public profile - join key is public.users.id = auth.users.id
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
@@ -395,12 +524,12 @@ async function bootstrapSession() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§6  ROUTER
-   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ================================================================
+   Section 6  ROUTER
+   -------------------------------------------------------------
    navigate() is sync: updates state + sidebar immediately, then
    calls renderSection() which is async and awaits render().
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+================================================================ */
 
 /**
  * Navigate to a section by key.
@@ -414,9 +543,9 @@ function navigate(sectionKey) {
     return;
   }
 
-  // Permission guard â€” uses cumulative hasRole()
+  // Permission guard - uses cumulative hasRole()
   if (section.roleRequired && !hasRole(section.roleRequired)) {
-    showToast('Acceso no autorizado para este mÃ³dulo.', 'error');
+    showToast('Acceso no autorizado para este módulo.', 'error');
     return;
   }
 
@@ -446,15 +575,37 @@ async function renderSection(sectionKey) {
   if (!wrap) return;
 
   const section = SECTIONS[sectionKey];
-
-  if (skeleton) skeleton.hidden = true;
+  const renderToken = state.renderToken + 1;
+  const loadingStartedAt = performance.now();
+  setState({ renderToken });
 
   wrap.classList.remove('db-section-wrap--visible');
+  wrap.innerHTML = renderLoadingBlock(section?.label ?? 'Cargando');
+  if (skeleton) skeleton.hidden = true;
+  requestAnimationFrame(() => {
+    if (state.renderToken === renderToken) {
+      wrap.classList.add('db-section-wrap--visible');
+    }
+  });
 
-  // Await the render â€” works whether the function is sync or async
-  const html = await section.render();
-
-  wrap.innerHTML = html;
+  try {
+    // Await the render - works whether the function is sync or async
+    const html = await section.render();
+    const elapsed = performance.now() - loadingStartedAt;
+    if (elapsed < SECTION_LOADING_MIN_MS) {
+      await new Promise((resolve) => setTimeout(resolve, SECTION_LOADING_MIN_MS - elapsed));
+    }
+    if (state.renderToken !== renderToken) return;
+    wrap.innerHTML = html;
+  } catch (error) {
+    if (state.renderToken !== renderToken) return;
+    console.error('[HR] renderSection:', error);
+    wrap.innerHTML = sectionShell('Sistema', 'No se pudo cargar', 'title-render-error', `
+      <p class="db-empty db-empty--error">Error al cargar este modulo.</p>
+    `);
+  } finally {
+    if (state.renderToken === renderToken && skeleton) skeleton.hidden = true;
+  }
 
   // Trigger reveal after paint
   requestAnimationFrame(() => {
@@ -463,9 +614,9 @@ async function renderSection(sectionKey) {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§7  TOPBAR HELPERS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 7  TOPBAR HELPERS
+================================================================ */
 
 function hydrateTopbar() {
   const nameEl   = document.getElementById('js-user-display-name');
@@ -473,7 +624,7 @@ function hydrateTopbar() {
 
   if (!state.user) return;
 
-  if (nameEl)   nameEl.textContent  = state.user.display_name ?? state.user.email ?? 'â€”';
+  if (nameEl)   nameEl.textContent  = state.user.display_name ?? state.user.email ?? '-';
   if (avatarEl) avatarEl.textContent = (state.user.display_name ?? state.user.email ?? '?')[0].toUpperCase();
 }
 
@@ -484,9 +635,9 @@ function updateTopbarTitle(label) {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§8  SIDEBAR HELPERS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 8  SIDEBAR HELPERS
+================================================================ */
 
 /** @param {string} activeKey */
 function updateSidebarActiveState(activeKey) {
@@ -499,7 +650,12 @@ function updateSidebarActiveState(activeKey) {
 
 function attachSidebarListeners() {
   document.querySelectorAll('.db-sidebar__item').forEach((btn) => {
-    btn.addEventListener('click', () => navigate(btn.dataset.section));
+    btn.addEventListener('click', () => {
+      navigate(btn.dataset.section);
+      setState({ sidebarOpen: false });
+      document.getElementById('js-sidebar')?.classList.remove('db-sidebar--open');
+      document.getElementById('js-sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+    });
   });
 
   const toggle = document.getElementById('js-sidebar-toggle');
@@ -514,16 +670,41 @@ function attachSidebarListeners() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§9  NOTIFICATIONS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 9  NOTIFICATIONS
+================================================================ */
 
 async function fetchNotifications() {
-  // Placeholder â€” wire to a notifications table when available
-  return [
-    { id: 'n1', message: 'Tu sesiÃ³n del Viernes fue confirmada.', type: 'success', ts: Date.now() - 3600_000,  read: false },
-    { id: 'n2', message: 'Nuevo contrato disponible para firma.',  type: 'info',    ts: Date.now() - 86400_000, read: false },
-  ];
+  const userUuid = state.user?.id;
+  const businessUserId = state.user?.user_id;
+  const targets = [userUuid, businessUserId].filter(Boolean).map(String);
+
+  if (!targets.length) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, message, type, created_at, read, user_id')
+      .in('user_id', targets)
+      .order('created_at', { ascending: false })
+      .limit(25);
+
+    if (error) {
+      console.info('[HR] notifications unavailable:', error.message);
+      return [];
+    }
+
+    return (data ?? []).map((item) => ({
+      id: item.id,
+      message: item.message ?? 'Notificacion',
+      type: item.type ?? 'info',
+      ts: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
+      read: Boolean(item.read),
+    }));
+  } catch (error) {
+    console.info('[HR] notifications not configured:', error);
+    return [];
+  }
 }
 
 async function loadAndRenderNotifications() {
@@ -572,9 +753,9 @@ function attachNotificationListeners() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§10  TOAST SYSTEM
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 10  TOAST SYSTEM
+================================================================ */
 
 /**
  * @param {string} message
@@ -603,9 +784,9 @@ function showToast(message, type = 'info', duration = 4000) {
 window.showToast = showToast;
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§11  USER MENU
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 11  USER MENU
+================================================================ */
 
 function attachUserMenuListeners() {
   const toggle = document.getElementById('js-user-menu-toggle');
@@ -626,7 +807,7 @@ function attachUserMenuListeners() {
 
     if (action === 'logout')   handleLogout();
     if (action === 'profile')  navigate('overview');
-    if (action === 'settings') showToast('Ajustes disponibles prÃ³ximamente.', 'info');
+    if (action === 'settings') navigate('account-settings');
 
     if (menu) menu.hidden = true;
     toggle?.setAttribute('aria-expanded', 'false');
@@ -642,20 +823,20 @@ function attachUserMenuListeners() {
 
 function handleLogout() {
   supabase.auth.signOut().finally(() => {
-    window.location.href = './index.html';
+    window.location.href = './';
   });
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§12  SECTION RENDERERS
-   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ================================================================
+   Section 12  SECTION RENDERERS
+   -------------------------------------------------------------
    Async renderers return Promise<string>.
    Sync renderers return string.
    renderSection() handles both via await.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+================================================================ */
 
-/* â”€â”€ OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- OVERVIEW ----------------------------------------------- */
 function renderOverview() {
   const { user, roles } = state;
 
@@ -670,7 +851,7 @@ function renderOverview() {
 
       <header class="db-section__header">
         <p class="section-label">Sistema</p>
-        <h1 class="db-section__title" id="section-overview-title">Overview</h1>
+        <h1 class="db-section__title" id="section-overview-title">Inicio</h1>
       </header>
 
       <div class="db-grid db-grid--2col">
@@ -681,31 +862,41 @@ function renderOverview() {
               ${escapeHTML((user?.display_name ?? user?.email ?? '?')[0].toUpperCase())}
             </div>
             <div class="db-profile__info">
-              <h2 class="db-profile__name">${escapeHTML(user?.display_name ?? 'â€”')}</h2>
+              <h2 class="db-profile__name">${escapeHTML(user?.display_name ?? '-')}</h2>
               <dl class="db-profile__meta">
                 <div class="db-profile__row">
                   <dt>ID</dt>
-                  <dd>${escapeHTML(String(user?.user_id ?? 'â€”'))}</dd>
+                  <dd>${escapeHTML(String(user?.user_id ?? '-'))}</dd>
                 </div>
                 <div class="db-profile__row">
                   <dt>Email</dt>
-                  <dd>${escapeHTML(user?.email ?? 'â€”')}</dd>
+                  <dd>${escapeHTML(user?.email ?? '-')}</dd>
                 </div>
                 <div class="db-profile__row">
                   <dt>WhatsApp</dt>
-                  <dd>${escapeHTML(user?.whatsapp ?? 'â€”')}</dd>
+                  <dd>${escapeHTML(user?.whatsapp ?? '-')}</dd>
                 </div>
               </dl>
               <div class="db-profile__roles" aria-label="Roles activos">
                 ${roleBadges}
               </div>
+              <div class="db-profile__actions" aria-label="Ajustes de cuenta">
+                <button type="button" class="db-profile-action" data-section="account-settings">
+                  <span class="db-icon db-icon--mail" aria-hidden="true"></span>
+                  <span>Cambia tu correo</span>
+                </button>
+                <button type="button" class="db-profile-action" data-section="account-settings">
+                  <span class="db-icon db-icon--settings" aria-hidden="true"></span>
+                  <span>Cambia tu contraseña</span>
+                </button>
+              </div>
             </div>
           </div>
         </article>
 
-        <article class="db-card" aria-label="Acciones rÃ¡pidas">
+        <article class="db-card" aria-label="Acciones rápidas">
           <header class="db-card__header">
-            <span class="section-label">Acciones rÃ¡pidas</span>
+            <span class="section-label">Acciones rápidas</span>
           </header>
           <div class="db-card__inner">
             <div class="db-quick-actions">
@@ -715,13 +906,39 @@ function renderOverview() {
         </article>
 
       </div>
-
-      <div class="db-stats-row" id="js-overview-stats" aria-label="EstadÃ­sticas">
-        ${renderStatsSkeleton()}
-      </div>
-
     </section>
   `;
+}
+
+function renderAccountSettings() {
+  const email = state.user?.email ?? '';
+
+  return sectionShell('Cuenta', 'Ajustes de Cuenta', 'title-account-settings', `
+    <div class="db-admin-grid">
+      <article class="db-card">
+        <header class="db-card__header">
+          <span class="section-label">Acceso</span>
+        </header>
+        <div class="db-card__inner">
+          <form class="db-form" data-form="account-update">
+            <label class="db-field">
+              <span>Nuevo email</span>
+              <input type="email" name="email" autocomplete="email" value="${escapeAttr(email)}" required />
+            </label>
+            <label class="db-field">
+              <span>Nueva contrasena</span>
+              <input type="password" name="password" autocomplete="new-password" minlength="6" placeholder="Dejar vacio para conservar" />
+            </label>
+            <label class="db-field">
+              <span>Confirmar contrasena</span>
+              <input type="password" name="password_confirm" autocomplete="new-password" minlength="6" placeholder="Repetir nueva contrasena" />
+            </label>
+            <button class="btn-primary" type="submit">Guardar cuenta</button>
+          </form>
+        </div>
+      </article>
+    </div>
+  `);
 }
 
 /** @param {string[]} roles */
@@ -733,7 +950,7 @@ function buildQuickActions(roles) {
     actions.push({ label: 'Mis Transacciones', section: 'client-transactions' });
   }
   if (roles.includes('pr')) {
-    actions.push({ label: 'Guest List',        section: 'rrpp-guestlist'      });
+    actions.push({ label: 'Lista de invitados', section: 'rrpp-guestlist'      });
   }
   if (roles.includes('collaborator')) {
     actions.push({ label: 'Ver Tareas',        section: 'collab-tasks'        });
@@ -749,22 +966,33 @@ function buildQuickActions(roles) {
   return actions.map((a) => `
     <button class="db-quick-action" data-section="${escapeHTML(a.section)}">
       ${escapeHTML(a.label)}
-      <span class="db-quick-action__arrow" aria-hidden="true">â†’</span>
+      <span class="db-quick-action__arrow" aria-hidden="true">-></span>
     </button>
   `).join('');
 }
 
-function renderStatsSkeleton() {
-  return ['â€”', 'â€”', 'â€”'].map(() => `
-    <div class="db-stat-card">
-      <span class="db-stat-card__value">â€”</span>
-      <span class="db-stat-card__label">Cargandoâ€¦</span>
-    </div>
-  `).join('');
+function renderLoadingBlock(label = 'Cargando') {
+  return `
+    <section class="db-section" aria-busy="true" aria-live="polite">
+      <header class="db-section__header">
+        <p class="section-label">${escapeHTML(label)}</p>
+        <h1 class="db-section__title">Cargando...</h1>
+      </header>
+      <div class="db-grid db-grid--2col">
+        <article class="db-card db-skeleton-card">
+          <div class="db-card__inner">
+            <span class="db-skeleton__line db-skeleton__line--wide"></span>
+            <span class="db-skeleton__line db-skeleton__line--mid"></span>
+            <span class="db-skeleton__line db-skeleton__line--narrow"></span>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
 }
 
 
-/* â”€â”€ CLIENT: DOWNLOADS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: DOWNLOADS -------------------------------------- */
 async function renderClientDownloads() {
   const { data, error } = await supabase
     .from('downloads')
@@ -795,13 +1023,13 @@ async function renderClientDownloads() {
   } else {
     rows = data.map((p) => `
       <tr>
-        <td>${escapeHTML(p.name ?? 'â€”')}</td>
-        <td>${escapeHTML(p.type ?? 'â€”')}</td>
-        <td>${escapeHTML(p.notes ?? 'â€”')}</td>
+        <td>${escapeHTML(p.name ?? '-')}</td>
+        <td>${escapeHTML(p.type ?? '-')}</td>
+        <td>${escapeHTML(p.notes ?? '-')}</td>
         <td>
           ${p.storage_path
             ? `<a class="btn-primary" href="${escapeHTML(p.storage_path)}" target="_blank" rel="noopener noreferrer">Descargar</a>`
-            : 'â€”'}
+            : '-'}
         </td>
       </tr>
     `).join('');
@@ -820,7 +1048,7 @@ async function renderClientDownloads() {
               <th scope="col">Producto</th>
               <th scope="col">Formato</th>
               <th scope="col">Notas</th>
-              <th scope="col">AcciÃ³n</th>
+              <th scope="col">Acción</th>
             </tr>
           </thead>
           <tbody id="js-downloads-body">
@@ -833,7 +1061,7 @@ async function renderClientDownloads() {
 }
 
 
-/* â”€â”€ CLIENT: SESSIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: SESSIONS --------------------------------------- */
 async function renderClientSessions() {
   const { data, error } = await supabase
     .from('sessions')
@@ -865,11 +1093,11 @@ async function renderClientSessions() {
   } else {
     rows = data.map((s) => `
       <tr>
-        <td>${escapeHTML(s.concept ?? 'â€”')}</td>
-        <td>${s.session_date ? new Date(s.session_date).toLocaleDateString('es-MX') : 'â€”'}</td>
-        <td>${escapeHTML(s.status ?? 'â€”')}</td>
-        <td>${escapeHTML(s.cost != null ? `$${s.cost}` : 'â€”')}</td>
-        <td>${escapeHTML(s.notes ?? 'â€”')}</td>
+        <td>${escapeHTML(s.concept ?? '-')}</td>
+        <td>${s.session_date ? new Date(s.session_date).toLocaleDateString('es-MX') : '-'}</td>
+        <td>${escapeHTML(s.status ?? '-')}</td>
+        <td>${escapeHTML(s.cost != null ? `$${s.cost}` : '-')}</td>
+        <td>${escapeHTML(s.notes ?? '-')}</td>
       </tr>
     `).join('');
   }
@@ -901,7 +1129,7 @@ async function renderClientSessions() {
 }
 
 
-/* â”€â”€ CLIENT: TRANSACTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: TRANSACTIONS ----------------------------------- */
 async function renderClientTransactions() {
   const { data, error } = await supabase
     .from('transactions')
@@ -933,11 +1161,11 @@ async function renderClientTransactions() {
   } else {
     rows = data.map((tx) => `
       <tr>
-        <td>${escapeHTML(tx.concept ?? 'â€”')}</td>
-        <td>${escapeHTML(tx.type ?? 'â€”')}</td>
+        <td>${escapeHTML(tx.concept ?? '-')}</td>
+        <td>${escapeHTML(tx.type ?? '-')}</td>
         <td>$${escapeHTML(String(tx.amount ?? 0))}</td>
-        <td>${tx.date ? new Date(tx.date).toLocaleDateString('es-MX') : 'â€”'}</td>
-        <td>${escapeHTML(tx.via ?? 'â€”')}</td>
+        <td>${tx.date ? new Date(tx.date).toLocaleDateString('es-MX') : '-'}</td>
+        <td>${escapeHTML(tx.via ?? '-')}</td>
       </tr>
     `).join('');
   }
@@ -956,7 +1184,7 @@ async function renderClientTransactions() {
               <th scope="col">Tipo</th>
               <th scope="col">Monto</th>
               <th scope="col">Fecha</th>
-              <th scope="col">VÃ­a</th>
+              <th scope="col">Vía</th>
             </tr>
           </thead>
           <tbody id="js-txn-body">
@@ -969,7 +1197,7 @@ async function renderClientTransactions() {
 }
 
 
-/* â”€â”€ CLIENT: CONTRACTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: CONTRACTS -------------------------------------- */
 async function renderClientContracts() {
   const { data, error } = await supabase
     .from('contracts')
@@ -1017,8 +1245,36 @@ async function renderClientContracts() {
   `;
 }
 
+function renderClientMembership() {
+  return `
+    <section class="db-section" aria-labelledby="title-membership">
+      <header class="db-section__header">
+        <p class="section-label">Cliente</p>
+        <h1 class="db-section__title" id="title-membership">Membresía</h1>
+      </header>
+      <div class="db-table-wrap">
+        <table class="db-table" aria-label="Membresía">
+          <thead>
+            <tr>
+              <th scope="col">Membresía</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Inicio</th>
+              <th scope="col">Renovacion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="db-table__empty-row">
+              <td colspan="4" class="db-empty">Sin datos de membresía.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
 
-/* â”€â”€ CLIENT: TICKETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+/* -- CLIENT: TICKETS ---------------------------------------- */
 function renderClientTickets() {
   return `
     <section class="db-section" aria-labelledby="title-tickets">
@@ -1034,13 +1290,13 @@ function renderClientTickets() {
 }
 
 
-/* â”€â”€ CLIENT: STORE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: STORE ------------------------------------------ */
 function renderClientStore() {
   return `
     <section class="db-section" aria-labelledby="title-store">
       <header class="db-section__header">
         <p class="section-label">Cliente</p>
-        <h1 class="db-section__title" id="title-store">Tienda Online â€” Pedidos</h1>
+        <h1 class="db-section__title" id="title-store">Tienda Online - Pedidos</h1>
       </header>
       <div class="db-table-wrap">
         <table class="db-table" aria-label="Historial de pedidos">
@@ -1065,36 +1321,45 @@ function renderClientStore() {
 }
 
 
-/* â”€â”€ CLIENT: REWARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- CLIENT: REWARDS ---------------------------------------- */
 async function renderClientRewards() {
-  const { data, error } = await supabase
-    .from('scores')
-    .select('*')
-    .eq('user_id', state.user.user_id);
+  const [
+    { data: scores, error: scoresError },
+    { data: rewards, error: rewardsError },
+  ] = await Promise.all([
+    supabase
+      .from('scores')
+      .select('*')
+      .eq('user_id', state.user.user_id),
+    supabase
+      .from('rewards')
+      .select('id, concept')
+      .eq('user_id', state.user.user_id),
+  ]);
 
-  if (error) {
-    console.error('[HR] renderClientRewards:', error);
+  if (scoresError || rewardsError) {
+    console.error('[HR] renderClientRewards:', scoresError || rewardsError);
     return `
       <section class="db-section" aria-labelledby="title-rewards">
         <header class="db-section__header">
           <p class="section-label">Cliente</p>
-          <h1 class="db-section__title" id="title-rewards">Rewards</h1>
+          <h1 class="db-section__title" id="title-rewards">Premios</h1>
         </header>
-        <p class="db-empty db-empty--error">Error al cargar rewards. Intenta de nuevo.</p>
+        <p class="db-empty db-empty--error">Error al cargar premios. Intenta de nuevo.</p>
       </section>
     `;
   }
 
   let scoresHTML;
 
-  if (!data || data.length === 0) {
+  if (!scores || scores.length === 0) {
     scoresHTML = '<p class="db-empty">Sin partidas registradas.</p>';
   } else {
     scoresHTML = `
       <ul class="db-card-list" role="list">
-        ${data.map((s) => `
+        ${scores.map((s) => `
           <li class="db-card-list__item">
-            <span class="db-card-list__label">${escapeHTML(s.game_id ?? 'â€”')}</span>
+            <span class="db-card-list__label">${escapeHTML(s.game_id ?? '-')}</span>
             <span class="db-card-list__value">${escapeHTML(s.type ?? '')} ${escapeHTML(String(s.amount ?? 0))} pts</span>
           </li>
         `).join('')}
@@ -1102,11 +1367,19 @@ async function renderClientRewards() {
     `;
   }
 
+  const rewardsHTML = rewards?.length
+    ? rewards.map((reward) => `
+      <li class="db-card-list__item">
+        <span class="db-card-list__label">${escapeHTML(reward.concept ?? 'Recompensa')}</span>
+      </li>
+    `).join('')
+    : '<li class="db-empty">Sin recompensas.</li>';
+
   return `
     <section class="db-section" aria-labelledby="title-rewards">
       <header class="db-section__header">
         <p class="section-label">Cliente</p>
-        <h1 class="db-section__title" id="title-rewards">Rewards</h1>
+        <h1 class="db-section__title" id="title-rewards">Premios</h1>
       </header>
       <div class="db-grid db-grid--3col">
         <article class="db-card" aria-label="Puntuaciones">
@@ -1122,15 +1395,15 @@ async function renderClientRewards() {
             <span class="section-label">Cupones Desbloqueados</span>
           </header>
           <ul class="db-coupon-list" id="js-rewards-coupons" role="list">
-            <li class="db-empty">Sin cupones.</li>
+            <li class="db-empty">Próximamente.</li>
           </ul>
         </article>
-        <article class="db-card" aria-label="Inventario de recompensas">
+        <article class="db-card" aria-label="Tus recompensas">
           <header class="db-card__header">
-            <span class="section-label">Inventario</span>
+            <span class="section-label">Tus recompensas</span>
           </header>
           <ul class="db-card-list" id="js-rewards-inventory" role="list">
-            <li class="db-empty">Sin recompensas.</li>
+            ${rewardsHTML}
           </ul>
         </article>
       </div>
@@ -1139,7 +1412,7 @@ async function renderClientRewards() {
 }
 
 
-/* â”€â”€ COLLABORATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- COLLABORATOR ------------------------------------------- */
 function renderCollabDocs() {
   return `
     <section class="db-section" aria-labelledby="title-collab-docs">
@@ -1311,19 +1584,34 @@ function renderUserPicker(name, label, value = '') {
   const selected = (state.data.users ?? []).find((u) => String(u.user_id) === String(value));
   const displayValue = selected ? userLabel(selected.user_id) : '';
   const inputId = `user-picker-${escapeAttr(name)}-${Math.random().toString(36).slice(2, 8)}`;
-  const options = (state.data.users ?? []).map((user) => `
-    <button class="db-user-option" type="button" data-user-id="${escapeHTML(String(user.user_id))}">
+  const options = (state.data.users ?? []).map((user) => {
+    const searchText = [
+      user.display_name,
+      user.email,
+      user.username,
+      user.user_id,
+    ]
+      .filter((item) => item !== null && item !== undefined)
+      .join(' ')
+      .toLowerCase();
+
+    return `
+    <button class="db-user-option" type="button" data-user-id="${escapeHTML(String(user.user_id))}" data-search-text="${escapeAttr(searchText)}">
       <span>${escapeHTML(user.display_name || user.email || user.user_id)}</span>
       <small>${escapeHTML(usernameLabel(user))}</small>
     </button>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div class="db-field db-user-picker">
       <label for="${inputId}">${escapeHTML(label)}</label>
       <input id="${inputId}" data-user-search autocomplete="off" placeholder="Buscar usuario" value="${escapeAttr(displayValue)}" />
       <input type="hidden" name="${escapeHTML(name)}" value="${escapeAttr(value)}" />
-      <div class="db-user-picker__menu" hidden>${options}</div>
+      <div class="db-user-picker__menu" hidden>
+        ${options}
+        <div class="db-user-picker__empty" data-user-picker-empty hidden>Sin usuarios encontrados.</div>
+      </div>
     </div>
   `;
 }
@@ -1338,7 +1626,7 @@ function optionHTML(value, label, selectedValue) {
 }
 
 
-/* â”€â”€ MEDIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- MEDIA -------------------------------------------------- */
 function renderMediaPosts() {
   return `
     <section class="db-section" aria-labelledby="title-media">
@@ -1348,10 +1636,10 @@ function renderMediaPosts() {
         <button class="btn-primary db-section__cta" id="js-media-new">+ Nuevo Post</button>
       </header>
       <div class="db-table-wrap">
-        <table class="db-table" aria-label="GestiÃ³n de posts">
+        <table class="db-table" aria-label="Gestión de posts">
           <thead>
             <tr>
-              <th scope="col">TÃ­tulo</th>
+              <th scope="col">Título</th>
               <th scope="col">Tipo</th>
               <th scope="col">Estado</th>
               <th scope="col">Fecha</th>
@@ -1370,9 +1658,9 @@ function renderMediaPosts() {
 }
 
 
-/* â”€â”€ RRPP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- RRPP --------------------------------------------------- */
 function renderRrppContacts() {
-  return sectionShell('Relaciones PÃºblicas', 'Contactos', 'title-rrpp-contacts', `
+  return sectionShell('Embajador', 'Contactos', 'title-rrpp-contacts', `
     <div class="db-table-wrap">
       <table class="db-table" aria-label="Directorio de contactos">
         <thead><tr>
@@ -1390,31 +1678,31 @@ function renderRrppContacts() {
 }
 
 function renderRrppInvitations() {
-  return sectionShell('Relaciones PÃºblicas', 'Invitaciones', 'title-rrpp-inv', `
+  return sectionShell('Embajador', 'Invitaciones', 'title-rrpp-inv', `
     <p class="db-empty">Sin invitaciones registradas.</p>
   `);
 }
 
 function renderRrppCampaigns() {
-  return sectionShell('Relaciones PÃºblicas', 'CampaÃ±as', 'title-rrpp-camp', `
-    <p class="db-empty">Sin campaÃ±as activas.</p>
+  return sectionShell('Embajador', 'Campañas', 'title-rrpp-camp', `
+    <p class="db-empty">Sin campañas activas.</p>
   `);
 }
 
 function renderRrppGuestlist() {
-  return sectionShell('Relaciones PÃºblicas', 'Guest Lists', 'title-rrpp-guest', `
-    <p class="db-empty">Sin guest lists disponibles.</p>
+  return sectionShell('Embajador', 'Lista de invitados', 'title-rrpp-guest', `
+    <p class="db-empty">Sin listas de invitados disponibles.</p>
   `);
 }
 
 function renderRrppBenefits() {
-  return sectionShell('Relaciones PÃºblicas', 'Beneficios', 'title-rrpp-benefits', `
+  return sectionShell('Embajador', 'Beneficios', 'title-rrpp-benefits', `
     <p class="db-empty">Sin beneficios registrados.</p>
   `);
 }
 
 
-/* â”€â”€ ERP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- ERP ---------------------------------------------------- */
 async function renderErpFinance() {
   await ensureUsersLoaded();
   return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
@@ -1549,6 +1837,13 @@ async function renderErpPermissions() {
     : `<tr class="db-table__empty-row"><td colspan="6" class="db-empty">Sin usuarios registrados.</td></tr>`;
 
   return sectionShell('ERP', 'Permisos', 'title-erp-permissions', `
+    <div class="db-toolbar">
+      <label class="db-field db-field--compact db-field--search">
+        <span>Buscar</span>
+        <input data-table-search data-table-target="js-permissions-table-body" data-table-count="js-permissions-table-count" placeholder="Buscar por nombre, usuario, rol o permiso" />
+        <small id="js-permissions-table-count" class="db-field__hint">${(users ?? []).length} filas visibles</small>
+      </label>
+    </div>
     <div class="db-table-wrap">
       <table class="db-table db-table--permissions" aria-label="Administracion de roles y permisos">
         <thead>
@@ -1561,7 +1856,7 @@ async function renderErpPermissions() {
             <th scope="col">Agregar</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody id="js-permissions-table-body">${rows}</tbody>
       </table>
     </div>
   `);
@@ -1579,9 +1874,20 @@ function renderPermissionUserRow(user) {
       </span>
     `).join('')
     : '<span class="db-empty">Sin permisos.</span>';
+  const searchText = [
+    user.display_name,
+    user.email,
+    user.username,
+    user.user_id,
+    user.roles,
+    ...permissions.map((permission) => permission.permission_key),
+  ]
+    .filter((value) => value !== null && value !== undefined)
+    .join(' ')
+    .toLowerCase();
 
   return `
-    <tr data-user-uuid="${escapeHTML(String(user.id))}">
+    <tr data-search-row data-search-text="${escapeAttr(searchText)}" data-user-uuid="${escapeHTML(String(user.id))}">
       <td>${escapeHTML(user.display_name ?? user.email ?? 'Sin nombre')}</td>
       <td>${escapeHTML(usernameLabel(user))}</td>
       <td>${escapeHTML(String(user.user_id ?? ''))}</td>
@@ -1604,8 +1910,124 @@ function renderPermissionUserRow(user) {
   `;
 }
 
+async function renderAdminTableEditor() {
+  if (!hasRole('admin')) {
+    return sectionShell('ERP', 'BB.DD', 'title-admin-table-editor', `
+      <p class="db-empty db-empty--error">Acceso no autorizado.</p>
+    `);
+  }
 
-/* â”€â”€ RENDER HELPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  const tableName = state.data.adminTableName || 'users';
+  const config = TABLE_EDITOR_CONFIG[tableName] || TABLE_EDITOR_CONFIG.users;
+  let data = [];
+
+  try {
+    data = await fetchAllTableEditorRows(tableName, config.select);
+  } catch (error) {
+    console.error('[HR] renderAdminTableEditor:', error);
+    return sectionShell('ERP', 'BB.DD', 'title-admin-table-editor', `
+      <p class="db-empty db-empty--error">No se pudo cargar ${escapeHTML(config.label)}. Revisa RLS/permisos.</p>
+    `);
+  }
+
+  state.data.adminTableRows = data ?? [];
+
+  const columns = [...config.lockedFields, ...config.editableFields]
+    .filter((field, index, arr) => arr.indexOf(field) === index);
+  const sortField = columns.includes(state.data.adminTableSortField) ? state.data.adminTableSortField : '';
+  const sortDirection = state.data.adminTableSortDirection === 'desc' ? 'desc' : 'asc';
+  const sortedData = sortField ? sortTableEditorRows(data ?? [], sortField, sortDirection) : (data ?? []);
+
+  const rows = sortedData.length
+    ? sortedData.map((row, index) => renderAdminTableEditorRow(tableName, config, row, index)).join('')
+    : `<tr class="db-table__empty-row"><td colspan="99" class="db-empty">Sin filas disponibles.</td></tr>`;
+
+  return sectionShell('ERP', 'BB.DD', 'title-admin-table-editor', `
+    <div class="db-toolbar">
+      <label class="db-field db-field--compact">
+        <span>Tabla</span>
+        <select data-action="table-editor-table" aria-label="Seleccionar tabla">
+          ${Object.entries(TABLE_EDITOR_CONFIG).map(([key, item]) => optionHTML(key, item.label, tableName)).join('')}
+        </select>
+      </label>
+      <label class="db-field db-field--compact">
+        <span>Ordenar por</span>
+        <select data-action="table-editor-sort-field" aria-label="Ordenar tabla por columna">
+          <option value="">Sin ordenar</option>
+          ${columns.map((field) => optionHTML(field, field, sortField)).join('')}
+        </select>
+      </label>
+      <label class="db-field db-field--compact">
+        <span>Dirección</span>
+        <select data-action="table-editor-sort-direction" aria-label="Direccion de ordenamiento">
+          ${optionHTML('asc', 'Ascendente / A-Z / viejo-nuevo', sortDirection)}
+          ${optionHTML('desc', 'Descendente / Z-A / nuevo-viejo', sortDirection)}
+        </select>
+      </label>
+      <label class="db-field db-field--compact db-field--search">
+        <span>Buscar</span>
+        <input data-table-search data-table-target="js-admin-table-body" data-table-count="js-admin-table-count" placeholder="Buscar por nombre, email, user_id..." />
+        <small id="js-admin-table-count" class="db-field__hint">${(data ?? []).length} filas cargadas</small>
+      </label>
+    </div>
+    ${tableName === 'users' ? '<p class="db-empty">Editar email aqui solo cambia public.users.email, no auth.users.</p>' : ''}
+    <div class="db-table-wrap">
+      <table class="db-table db-table--editor" aria-label="Editor de ${escapeAttr(config.label)}">
+        <thead>
+          <tr>
+            ${columns.map((field) => `<th scope="col">${escapeHTML(field)}</th>`).join('')}
+            <th scope="col">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="js-admin-table-body">${rows}</tbody>
+      </table>
+    </div>
+  `);
+}
+
+function renderAdminTableEditorRow(tableName, config, row, index) {
+  const columns = [...config.lockedFields, ...config.editableFields]
+    .filter((field, fieldIndex, arr) => arr.indexOf(field) === fieldIndex);
+
+  const original = encodeURIComponent(JSON.stringify(row));
+  const searchText = columns
+    .map((field) => row[field])
+    .filter((value) => value !== null && value !== undefined)
+    .join(' ')
+    .toLowerCase();
+
+  return `
+    <tr data-search-row data-search-text="${escapeAttr(searchText)}">
+      ${columns.map((field) => {
+        const value = row[field] ?? '';
+        if (config.lockedFields.includes(field)) {
+          return `<td><code>${escapeHTML(String(value))}</code></td>`;
+        }
+
+        return `
+          <td>
+            <input
+              class="db-table-input"
+              form="admin-table-form-${index}"
+              name="${escapeAttr(field)}"
+              value="${escapeAttr(value)}"
+            />
+          </td>
+        `;
+      }).join('')}
+      <td>
+        <form class="db-inline-form" id="admin-table-form-${index}" data-form="admin-table-update">
+          <input type="hidden" name="table_name" value="${escapeAttr(tableName)}" />
+          <input type="hidden" name="original" value="${escapeAttr(original)}" />
+          <button class="db-btn-secondary" type="submit">Guardar</button>
+        </form>
+      </td>
+    </tr>
+  `;
+}
+
+
+/* -- RENDER HELPER ------------------------------------------ */
 /**
  * Generic section shell to reduce boilerplate.
  * @param {string} label
@@ -1760,6 +2182,72 @@ async function handleErpForm(form) {
   if (ok) form.reset();
 }
 
+async function handleAccountUpdate(form) {
+  const values = formValues(form);
+  const email = values.email?.trim();
+  const password = values.password;
+  const passwordConfirm = values.password_confirm;
+
+  if (!email) {
+    showToast('Ingresa un email valido.', 'error');
+    return;
+  }
+
+  if (password || passwordConfirm) {
+    if (password !== passwordConfirm) {
+      showToast('Las contrasenas no coinciden.', 'error');
+      return;
+    }
+
+    if (password.length < 6) {
+      showToast('La contrasena debe tener al menos 6 caracteres.', 'error');
+      return;
+    }
+  }
+
+  const authPayload = { email };
+  if (password) authPayload.password = password;
+
+  const { data, error } = await supabase.auth.updateUser(authPayload);
+
+  if (error) {
+    console.error('[HR] account update:', error);
+    showToast(error.message || 'No se pudo actualizar la cuenta.', 'error');
+    return;
+  }
+
+  const authEmail = data?.user?.email ?? state.user.email;
+  const emailChangedInAuth = authEmail === email;
+
+  if (emailChangedInAuth) {
+    const { error: profileError } = await supabase
+      .from('users')
+      .update({ email })
+      .eq('id', state.user.id);
+
+    if (profileError) {
+      console.error('[HR] account profile sync:', profileError);
+      showToast('Auth actualizado, pero no se pudo sincronizar el perfil.', 'warning');
+    }
+  }
+
+  const nextUser = {
+    ...state.user,
+    ...(data?.user ?? {}),
+    email: emailChangedInAuth ? email : authEmail,
+  };
+
+  setState({ user: nextUser });
+  hydrateTopbar();
+  showToast(
+    emailChangedInAuth
+      ? 'Cuenta actualizada.'
+      : 'Revisa tu correo para confirmar el cambio de email.',
+    emailChangedInAuth ? 'success' : 'info'
+  );
+  navigate('account-settings');
+}
+
 function requireAdminMutation() {
   if (hasRole('admin')) return true;
   showToast('Acceso no autorizado.', 'error');
@@ -1846,10 +2334,80 @@ async function handlePermissionRemove(permissionId) {
   navigate('erp-permissions');
 }
 
+async function handleAdminTableUpdate(form) {
+  if (!requireAdminMutation()) return;
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§13  UTILITY FUNCTIONS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  const values = formValues(form);
+  const tableName = values.table_name;
+  const config = TABLE_EDITOR_CONFIG[tableName];
+
+  if (!config) {
+    showToast('Tabla no permitida.', 'error');
+    return;
+  }
+
+  let original;
+  try {
+    original = JSON.parse(decodeURIComponent(values.original));
+  } catch (err) {
+    console.error('[HR] table editor original parse:', err);
+    showToast('No se pudo leer la fila original.', 'error');
+    return;
+  }
+
+  const payload = {};
+  config.editableFields.forEach((field) => {
+    if (field in values) payload[field] = values[field];
+  });
+
+  let query = supabase.from(tableName).update(payload);
+
+  if (config.primaryKey) {
+    query = query.eq(config.primaryKey, original[config.primaryKey]);
+  } else {
+    config.matchFields.forEach((field) => {
+      query = query.eq(field, original[field]);
+    });
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    console.error('[HR] table editor update:', error);
+    showToast('No se pudo actualizar la fila. Revisa RLS/permisos.', 'error');
+    return;
+  }
+
+  showToast('Fila actualizada.', 'success');
+  navigate('admin-table-editor');
+}
+
+function filterTableRows(input) {
+  const targetId = input.dataset.tableTarget;
+  const tbody = document.getElementById(targetId);
+  if (!tbody) return;
+
+  const query = input.value.trim().toLowerCase();
+  let visibleCount = 0;
+  tbody.querySelectorAll('[data-search-row]').forEach((row) => {
+    const searchable = row.dataset.searchText || row.textContent.toLowerCase();
+    const visible = query ? searchable.includes(query) : true;
+    row.hidden = !visible;
+    if (visible) visibleCount += 1;
+  });
+
+  const count = document.getElementById(input.dataset.tableCount);
+  if (count) {
+    count.textContent = query
+      ? `${visibleCount} resultado${visibleCount === 1 ? '' : 's'}`
+      : `${visibleCount} filas visibles`;
+  }
+}
+
+
+/* ================================================================
+   Section 13  UTILITY FUNCTIONS
+================================================================ */
 
 /** Prevent XSS when injecting user-supplied strings into innerHTML */
 function escapeHTML(str) {
@@ -1876,15 +2434,15 @@ function relativeTime(ts) {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§14  EVENT DELEGATION â€” MAIN AREA
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 14  EVENT DELEGATION - MAIN AREA
+================================================================ */
 
 function attachMainDelegation() {
   const main = document.getElementById('js-main');
 
   main?.addEventListener('click', (e) => {
-    const qa = e.target.closest('.db-quick-action[data-section]');
+    const qa = e.target.closest('.db-quick-action[data-section], .db-profile-action[data-section]');
     if (qa) {
       navigate(qa.dataset.section);
     }
@@ -1935,9 +2493,38 @@ function attachMainDelegation() {
     if (roleSelect) {
       handleRoleChange(roleSelect.dataset.userUuid, roleSelect.value);
     }
+
+    const tableSelect = e.target.closest('select[data-action="table-editor-table"]');
+    if (tableSelect) {
+      state.data.adminTableName = tableSelect.value;
+      state.data.adminTableSortField = '';
+      state.data.adminTableSortDirection = 'asc';
+      navigate('admin-table-editor');
+      return;
+    }
+
+    const tableSortField = e.target.closest('select[data-action="table-editor-sort-field"]');
+    if (tableSortField) {
+      state.data.adminTableSortField = tableSortField.value;
+      navigate('admin-table-editor');
+      return;
+    }
+
+    const tableSortDirection = e.target.closest('select[data-action="table-editor-sort-direction"]');
+    if (tableSortDirection) {
+      state.data.adminTableSortDirection = tableSortDirection.value;
+      navigate('admin-table-editor');
+      return;
+    }
   });
 
   main?.addEventListener('input', (e) => {
+    const tableSearch = e.target.closest('[data-table-search]');
+    if (tableSearch) {
+      filterTableRows(tableSearch);
+      return;
+    }
+
     const search = e.target.closest('[data-user-search]');
     if (!search) return;
 
@@ -1950,10 +2537,16 @@ function attachMainDelegation() {
     if (!menu) return;
 
     menu.hidden = false;
+    let visibleCount = 0;
     menu.querySelectorAll('.db-user-option').forEach((option) => {
-      const text = option.textContent.toLowerCase();
-      option.hidden = query ? !text.includes(query) : false;
+      const text = option.dataset.searchText || option.textContent.toLowerCase();
+      const visible = query ? text.includes(query) : true;
+      option.hidden = !visible;
+      if (visible) visibleCount += 1;
     });
+
+    const empty = menu.querySelector('[data-user-picker-empty]');
+    if (empty) empty.hidden = visibleCount > 0;
   });
 
   main?.addEventListener('submit', (e) => {
@@ -1964,7 +2557,9 @@ function attachMainDelegation() {
 
     if (form.dataset.form === 'task-create') handleTaskCreate(form);
     if (form.dataset.form === 'task-update') handleTaskUpdate(form);
+    if (form.dataset.form === 'account-update') handleAccountUpdate(form);
     if (form.dataset.form === 'permission-add') handlePermissionAdd(form);
+    if (form.dataset.form === 'admin-table-update') handleAdminTableUpdate(form);
     if (form.dataset.form?.endsWith('-create') && !form.dataset.form.startsWith('task-')) {
       handleErpForm(form);
     }
@@ -1972,15 +2567,15 @@ function attachMainDelegation() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§15  INIT
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 15  INIT
+================================================================ */
 
 async function init() {
   const session = await bootstrapSession();
 
   if (!session) {
-    window.location.href = './index.html';
+    window.location.href = './';
     return;
   }
 
@@ -2010,9 +2605,9 @@ if (document.readyState === 'loading') {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Â§16  PUBLIC API
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ================================================================
+   Section 16  PUBLIC API
+================================================================ */
 export {
   navigate,
   showToast,
@@ -2024,4 +2619,3 @@ export {
   hasPermission,
   hasAnyPermission,
 };
-

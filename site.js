@@ -1,5 +1,27 @@
 const SITE_STATUS = "Sitio en Construcción";
-const SITE_VERSION = "V. 0.2.5";
+const SITE_VERSION = "V. 0.3.2";
+
+function cleanIndexURL() {
+  const { pathname, search, hash } = window.location;
+  if (!pathname.endsWith('/index.html')) return;
+
+  const cleanPath = pathname.slice(0, -'index.html'.length);
+  window.history.replaceState(null, '', `${cleanPath}${search}${hash}`);
+}
+
+function hydrateCanonicalMeta() {
+  const cleanURL = new URL(window.location.href);
+  if (cleanURL.pathname.endsWith('/index.html')) {
+    cleanURL.pathname = cleanURL.pathname.slice(0, -'index.html'.length);
+  }
+
+  document.querySelectorAll('meta[property="og:url"]').forEach((meta) => {
+    meta.setAttribute('content', cleanURL.href);
+  });
+}
+
+cleanIndexURL();
+hydrateCanonicalMeta();
 
 document.querySelectorAll(".site-status").forEach(el => {
   el.textContent = SITE_STATUS;
