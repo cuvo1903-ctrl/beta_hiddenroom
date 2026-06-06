@@ -1344,6 +1344,13 @@
   font-family: var(--font-display);
   font-weight: 900;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.db-user-chip__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* User dropdown menu */

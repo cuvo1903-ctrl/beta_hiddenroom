@@ -6,6 +6,9 @@ const supabase = createClient(
 );
 
 let registerMode = false;
+let passwordResetCooldownUntil = 0;
+let passwordResetCooldownTimer = null;
+let passwordResetBusy = false;
 
 const getSafeRedirect = () => {
   const fallback = "./dashboard.html";
@@ -123,22 +126,79 @@ function isAlreadyRegisteredError(error) {
 }
 
 async function isRegisteredEmail(email) {
-  const { data, error } = await supabase
+  const rpc = await supabase.rpc("email_is_registered", { p_email: email });
+  if (!rpc.error) return Boolean(rpc.data);
+
+  console.info("[HR] recovery rpc email check skipped:", rpc.error.message);
+
+  const primary = await supabase
     .from("users")
     .select("id")
     .ilike("email", email)
-    .maybeSingle();
+    .limit(1);
 
-  if (error) {
-    console.info("[HR] recovery user check skipped:", error.message);
-    return true;
+  if (primary.error) {
+    console.info("[HR] recovery user check users skipped:", primary.error.message);
   }
 
-  return Boolean(data);
+  if (Array.isArray(primary.data) && primary.data.length > 0) return true;
+
+  const safe = await supabase
+    .from("users_safe")
+    .select("id")
+    .ilike("email", email)
+    .limit(1);
+
+  if (safe.error) {
+    console.info("[HR] recovery user check users_safe skipped:", safe.error.message);
+    return primary.error ? null : false;
+  }
+
+  return Array.isArray(safe.data) ? safe.data.length > 0 : Boolean(safe.data);
+}
+
+function setPasswordResetCooldown(seconds = 60) {
+  if (!passwordResetLink) return;
+
+  passwordResetCooldownUntil = Date.now() + seconds * 1000;
+  passwordResetLink.setAttribute("aria-disabled", "true");
+  passwordResetLink.dataset.cooldown = "true";
+
+  const tick = () => {
+    const remaining = Math.ceil((passwordResetCooldownUntil - Date.now()) / 1000);
+    if (remaining <= 0) {
+      passwordResetLink.removeAttribute("aria-disabled");
+      delete passwordResetLink.dataset.cooldown;
+      passwordResetLink.textContent = "SOLICITA";
+      clearInterval(passwordResetCooldownTimer);
+      passwordResetCooldownTimer = null;
+      return;
+    }
+    passwordResetLink.textContent = `ESPERA ${remaining}s`;
+  };
+
+  tick();
+  clearInterval(passwordResetCooldownTimer);
+  passwordResetCooldownTimer = setInterval(tick, 1000);
+}
+
+function setPasswordResetBusy(isBusy) {
+  passwordResetBusy = isBusy;
+  if (!passwordResetLink || Date.now() < passwordResetCooldownUntil) return;
+
+  if (isBusy) {
+    passwordResetLink.setAttribute("aria-disabled", "true");
+    passwordResetLink.textContent = "ENVIANDO...";
+  } else {
+    passwordResetLink.removeAttribute("aria-disabled");
+    passwordResetLink.textContent = "SOLICITA";
+  }
 }
 
 passwordResetLink?.addEventListener("click", async (e) => {
   e.preventDefault();
+
+  if (passwordResetBusy || Date.now() < passwordResetCooldownUntil) return;
 
   const email = document.getElementById("usuario").value.trim();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -146,22 +206,29 @@ passwordResetLink?.addEventListener("click", async (e) => {
     return;
   }
 
-  const registered = await isRegisteredEmail(email);
-  if (!registered) {
-    alert("Usuario no registrado");
-    return;
+  setPasswordResetBusy(true);
+
+  try {
+    const registered = await isRegisteredEmail(email);
+    if (registered === false) {
+      alert("Usuario no registrado");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: new URL("./recovery.html", window.location.href).href,
+    });
+
+    if (error) {
+      alert(error.message || "No se pudo enviar el email de recuperaci\u00f3n.");
+      return;
+    }
+
+    setPasswordResetCooldown(60);
+    alert("Email de recuperaci\u00f3n enviado.");
+  } finally {
+    setPasswordResetBusy(false);
   }
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: new URL("./recovery.html", window.location.href).href,
-  });
-
-  if (error) {
-    alert(error.message || "No se pudo enviar el email de recuperaciÃ³n.");
-    return;
-  }
-
-  alert("Email de recuperaciÃ³n enviado.");
 });
 
 registerLink?.addEventListener("click", (e) => {

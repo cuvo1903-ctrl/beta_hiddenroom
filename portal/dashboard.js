@@ -33,6 +33,7 @@ const supabase = createClient(
 const PROFILE_UPDATE_WHATSAPP = '5210000000000';
 const SHARE_LOGIN_WHATSAPP_FALLBACK = '5210000000000';
 const LOCAL_SCORE_SYNC_KEYS = ['dem00nz_best'];
+const NOTIFICATIONS_ENABLED = false;
 const ERP_TYPE_OPTIONS = ['INGRESO', 'EGRESO'];
 const ERP_STATUS_OPTIONS = ['sin apartado', 'apartado', 'saldado'];
 const FINANCE_STUDIO_SOURCES = [
@@ -78,6 +79,9 @@ const state = {
 
   /** Notification items */
   notifications: [],
+
+  /** Disabled after Supabase reports public.notifications is not available */
+  notificationsAvailable: NOTIFICATIONS_ENABLED,
 
   /** Whether the sidebar is open on mobile */
   sidebarOpen: false,
@@ -363,10 +367,10 @@ const TABLE_EDITOR_CONFIG = {
   users: {
     label: 'Usuarios',
     primaryKey: 'id',
-    select: 'id, user_id, display_name, email, whatsapp, avatar_url, username, roles',
-    lockedFields: ['id', 'user_id', 'roles'],
+    select: 'id, user_id, display_name, email, whatsapp, avatar_url, username, roles, has_auth, old_id, temp_password',
+    lockedFields: ['id', 'user_id', 'roles', 'has_auth', 'old_id', 'temp_password'],
     editableFields: ['display_name', 'email', 'whatsapp', 'avatar_url', 'username'],
-    hiddenColumns: ['id'],
+    hiddenColumns: ['id', 'temp_password'],
   },
   transactions: {
     label: 'Transacciones',
@@ -787,20 +791,38 @@ function hydrateTopbar() {
   if (nameEl)   nameEl.textContent  = state.user.display_name ?? state.user.email ?? '-';
   if (avatarEl) {
     const avatarUrl = String(state.user.avatar_url ?? '').trim();
-    avatarEl.textContent = '';
-    avatarEl.style.backgroundImage = '';
-    avatarEl.style.backgroundSize = '';
-    avatarEl.style.backgroundPosition = '';
+    const fallbackInitial = (state.user.display_name ?? state.user.email ?? '?')[0].toUpperCase();
+    const renderFallback = () => {
+      avatarEl.textContent = fallbackInitial;
+      avatarEl.removeAttribute('aria-label');
+    };
 
-    if (/^https?:\/\//i.test(avatarUrl)) {
-      avatarEl.style.backgroundImage = `url("${avatarUrl.replace(/"/g, '%22')}")`;
-      avatarEl.style.backgroundSize = 'cover';
-      avatarEl.style.backgroundPosition = 'center';
+    avatarEl.textContent = '';
+    avatarEl.replaceChildren();
+
+    if (/^https?:\/\//i.test(avatarUrl) && !isBlockedAvatarHost(avatarUrl)) {
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.loading = 'lazy';
+      img.addEventListener('error', renderFallback, { once: true });
+      avatarEl.appendChild(img);
       avatarEl.setAttribute('aria-label', 'Foto de perfil');
     } else {
-      avatarEl.textContent = (state.user.display_name ?? state.user.email ?? '?')[0].toUpperCase();
-      avatarEl.removeAttribute('aria-label');
+      renderFallback();
     }
+  }
+}
+
+function isBlockedAvatarHost(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes('cdninstagram')
+      || host.includes('fbcdn')
+      || host.startsWith('scontent.');
+  } catch {
+    return false;
   }
 }
 
@@ -856,6 +878,8 @@ function attachSidebarListeners() {
 ================================================================ */
 
 async function fetchNotifications() {
+  if (!state.notificationsAvailable) return [];
+
   const userUuid = state.user?.id;
   const businessUserId = state.user?.user_id;
   const targets = [userUuid, businessUserId].filter(Boolean).map(String);
@@ -872,6 +896,9 @@ async function fetchNotifications() {
 
     if (error) {
       console.info('[HR] notifications unavailable:', error.message);
+      if (/schema cache|could not find the table|404/i.test(error.message)) {
+        setState({ notificationsAvailable: false });
+      }
       return [];
     }
 
@@ -884,11 +911,19 @@ async function fetchNotifications() {
     }));
   } catch (error) {
     console.info('[HR] notifications not configured:', error);
+    setState({ notificationsAvailable: false });
     return [];
   }
 }
 
 async function loadAndRenderNotifications() {
+  if (!NOTIFICATIONS_ENABLED) {
+    document.getElementById('js-notifications-toggle')?.setAttribute('hidden', '');
+    document.getElementById('js-notifications-panel')?.setAttribute('hidden', '');
+    setState({ notifications: [] });
+    return;
+  }
+
   const notifications = await fetchNotifications();
   setState({ notifications });
 
@@ -3606,7 +3641,12 @@ async function handleAdminTableDelete(tableName, encodedRow) {
 
   if (!confirmed) return;
 
-  let query = supabase.from(tableName).delete();
+  if (tableName === 'users') {
+    await handleAdminUserDelete(original);
+    return;
+  }
+
+  let query = supabase.from(tableName).delete({ count: 'exact' });
   if (config.primaryKey) {
     query = query.eq(config.primaryKey, original[config.primaryKey]);
   } else if (original.id) {
@@ -3617,15 +3657,50 @@ async function handleAdminTableDelete(tableName, encodedRow) {
     });
   }
 
-  const { error } = await query;
+  const { error, count } = await query;
   if (error) {
     console.error('[HR] table editor delete:', error);
     showToast('No se pudo eliminar la fila. Revisa RLS/permisos.', 'error');
     return;
   }
 
+  if (count === 0) {
+    console.warn('[HR] table editor delete affected 0 rows:', { tableName, original });
+    showToast('No se eliminó ninguna fila. Revisa policies DELETE/RLS.', 'error');
+    return;
+  }
+
   showToast('Fila eliminada.', 'success');
   navigate('admin-table-editor');
+}
+
+async function handleAdminUserDelete(user) {
+  try {
+    const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+      body: {
+        user_id: user.id ?? null,
+      },
+    });
+
+    if (error) {
+      console.error('[HR] admin-delete-user function:', error);
+      showToast(error.message || 'No se pudo eliminar el usuario.', 'error');
+      return;
+    }
+
+    if (data?.error || data?.success === false) {
+      console.error('[HR] admin-delete-user:', data.error);
+      showToast(data.error, 'error');
+      return;
+    }
+
+    showToast('Usuario eliminado de Auth y BB.DD.', 'success');
+    state.data.users = null;
+    navigate('admin-table-editor');
+  } catch (err) {
+    console.error('[HR] admin-delete-user invoke:', err);
+    showToast('Error al contactar la función de eliminación.', 'error');
+  }
 }
 
 function loadScriptOnce(src, globalCheck) {
