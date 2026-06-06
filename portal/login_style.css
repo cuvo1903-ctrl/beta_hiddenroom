@@ -1416,6 +1416,55 @@ footer {
 }
 
 /* — Forgot password link — */
+.password-field {
+  position: relative;
+  width: 100%;
+}
+
+.password-field .login-input {
+  padding-right: 56px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--white-dim);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-transform: uppercase;
+  cursor: none;
+}
+
+.password-toggle:hover {
+  color: var(--red);
+}
+
+.password-eye {
+  display: block;
+  width: 24px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-radius: 50% / 65%;
+  position: relative;
+}
+
+.password-eye::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .login-forgot {
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);

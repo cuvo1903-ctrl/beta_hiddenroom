@@ -803,6 +803,55 @@
   color: var(--white);
 }
 
+.db-password-field {
+  position: relative;
+  width: 100%;
+}
+
+.db-password-field input {
+  padding-right: 56px;
+}
+
+.db-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--white-faint);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.db-password-toggle:hover {
+  color: var(--red);
+}
+
+.password-eye {
+  display: block;
+  width: 24px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-radius: 50% / 65%;
+  position: relative;
+}
+
+.password-eye::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .db-btn-secondary,
 .db-btn-danger {
   min-height: 36px;

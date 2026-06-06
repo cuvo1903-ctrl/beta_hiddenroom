@@ -755,12 +755,14 @@ async function renderSection(sectionKey) {
     }
     if (state.renderToken !== renderToken) return;
     wrap.innerHTML = html;
+    enhancePasswordToggles(wrap);
   } catch (error) {
     if (state.renderToken !== renderToken) return;
     console.error('[HR] renderSection:', error);
     wrap.innerHTML = sectionShell('Sistema', 'No se pudo cargar', 'title-render-error', `
       <p class="db-empty db-empty--error">Error al cargar este modulo.</p>
     `);
+    enhancePasswordToggles(wrap);
   } finally {
     if (state.renderToken === renderToken && skeleton) skeleton.hidden = true;
   }
@@ -1096,11 +1098,11 @@ function renderAccountSettings() {
             </label>
             <label class="db-field">
               <span>Nueva contrasena</span>
-              <input type="password" name="password" autocomplete="new-password" minlength="6" placeholder="Dejar vacio para conservar" />
+              <input type="password" name="password" autocomplete="new-password" minlength="6" placeholder="Nueva contrasena" />
             </label>
             <label class="db-field">
               <span>Confirmar contrasena</span>
-              <input type="password" name="password_confirm" autocomplete="new-password" minlength="6" placeholder="Repetir nueva contrasena" />
+              <input type="password" name="password_confirm" autocomplete="new-password" minlength="6" placeholder="Confirmar contrasena" />
             </label>
             <button class="btn-primary" type="submit">Guardar cuenta</button>
           </form>
@@ -3831,6 +3833,24 @@ function escapeAttr(value) {
   return escapeHTML(String(value ?? ''));
 }
 
+function enhancePasswordToggles(root = document) {
+  root.querySelectorAll('input[type="password"]:not([data-password-toggle-ready]), input[type="text"][data-password-visible="true"]:not([data-password-toggle-ready])').forEach((input) => {
+    input.dataset.passwordToggleReady = 'true';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'db-password-field';
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'db-password-toggle';
+    button.dataset.action = 'toggle-password';
+    button.setAttribute('aria-label', 'Ver contrasena');
+    button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+    wrapper.appendChild(button);
+  });
+}
+
 /** Human-readable relative time */
 function relativeTime(ts) {
   const diff = Date.now() - ts;
@@ -3884,6 +3904,19 @@ function attachMainDelegation() {
   const main = document.getElementById('js-main');
 
   main?.addEventListener('click', (e) => {
+    const passwordToggle = e.target.closest('[data-action="toggle-password"]');
+    if (passwordToggle) {
+      const input = passwordToggle.closest('.db-password-field')?.querySelector('input');
+      if (input) {
+        const visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        input.dataset.passwordVisible = visible ? 'false' : 'true';
+        passwordToggle.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+        passwordToggle.setAttribute('aria-label', visible ? 'Ver contrasena' : 'Ocultar contrasena');
+      }
+      return;
+    }
+
     const qa = e.target.closest('.db-quick-action[data-section], .db-profile-action[data-section]');
     if (qa) {
       navigate(qa.dataset.section);
@@ -4139,7 +4172,7 @@ function showOnboardingModal(needsEmail, needsPassword) {
         </p>
         <label class="db-field">
           <span>Nuevo correo electrónico</span>
-          <input id="js-ob-email" type="email" autocomplete="email" placeholder="nombre@ejemplo.com" required />
+          <input id="js-ob-email" type="email" autocomplete="email" placeholder="Nombre@ejemplo.com" required />
         </label>
         <div id="js-ob-email-error" style="color:#f87171;font-size:.8rem;min-height:18px;margin-top:4px;"></div>
       </section>
@@ -4153,11 +4186,11 @@ function showOnboardingModal(needsEmail, needsPassword) {
         </p>
         <label class="db-field">
           <span>Nueva contraseña</span>
-          <input id="js-ob-password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required />
+          <input id="js-ob-password" type="password" autocomplete="new-password" placeholder="Nueva contraseña" required />
         </label>
         <label class="db-field" style="margin-top:10px;">
           <span>Confirmar contraseña</span>
-          <input id="js-ob-password-confirm" type="password" autocomplete="new-password" placeholder="Repetir contraseña" required />
+          <input id="js-ob-password-confirm" type="password" autocomplete="new-password" placeholder="Confirmar contraseña" required />
         </label>
         <div id="js-ob-password-error" style="color:#f87171;font-size:.8rem;min-height:18px;margin-top:4px;"></div>
       </section>
@@ -4180,6 +4213,7 @@ function showOnboardingModal(needsEmail, needsPassword) {
     `;
 
     document.body.appendChild(overlay);
+    enhancePasswordToggles(overlay);
 
     // Prevent any click on the backdrop from closing it
     overlay.addEventListener('click', (e) => { e.stopPropagation(); });

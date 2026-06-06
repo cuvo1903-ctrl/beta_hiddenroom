@@ -9,6 +9,38 @@ const form = document.getElementById("recovery-form");
 const statusEl = document.getElementById("recovery-status");
 const submitButton = form?.querySelector(".login-submit");
 
+function enhancePasswordToggles(root = document) {
+  root.querySelectorAll('input[type="password"]:not([data-password-toggle-ready]), input[type="text"][data-password-visible="true"]:not([data-password-toggle-ready])').forEach((input) => {
+    input.dataset.passwordToggleReady = "true";
+    const wrapper = document.createElement("div");
+    wrapper.className = "password-field";
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "password-toggle";
+    button.dataset.action = "toggle-password";
+    button.setAttribute("aria-label", "Ver contraseña");
+    button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+    wrapper.appendChild(button);
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const button = e.target.closest('[data-action="toggle-password"]');
+  if (!button) return;
+
+  const input = button.closest(".password-field")?.querySelector("input");
+  if (!input) return;
+
+  const visible = input.type === "text";
+  input.type = visible ? "password" : "text";
+  input.dataset.passwordVisible = visible ? "false" : "true";
+  button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+  button.setAttribute("aria-label", visible ? "Ver contraseña" : "Ocultar contraseña");
+});
+
 function setStatus(message) {
   if (statusEl) statusEl.textContent = message;
 }
@@ -92,3 +124,5 @@ form?.addEventListener("submit", async (e) => {
     window.location.href = "./dashboard.html";
   }, 900);
 });
+
+enhancePasswordToggles();

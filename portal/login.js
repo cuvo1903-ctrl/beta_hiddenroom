@@ -1,4 +1,4 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+﻿import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 const supabase = createClient(
   "https://rpcunbkstadgngqrjafp.supabase.co",
@@ -37,11 +37,11 @@ function ensureRegisterFields() {
   registerWrap.innerHTML = `
     <div class="login-field">
       <label class="login-label" for="display_name">Nombre</label>
-      <input class="login-input" id="display_name" type="text" name="display_name" placeholder="nombre" autocomplete="name" required>
+      <input class="login-input" id="display_name" type="text" name="display_name" placeholder="Nombre" autocomplete="name" required>
     </div>
     <div class="login-field">
       <label class="login-label" for="whatsapp">WhatsApp</label>
-      <input class="login-input" id="whatsapp" type="tel" name="whatsapp" placeholder="521..." autocomplete="tel" required>
+      <input class="login-input" id="whatsapp" type="tel" name="whatsapp" placeholder="WhatsApp" inputmode="numeric" pattern="[0-9]*" autocomplete="tel" required>
     </div>
   `;
 
@@ -58,6 +58,24 @@ function removeRegisterFields() {
   document.getElementById("whatsapp")?.closest(".login-field")?.remove();
 }
 
+function enhancePasswordToggles(root = document) {
+  root.querySelectorAll('input[type="password"]:not([data-password-toggle-ready]), input[type="text"][data-password-visible="true"]:not([data-password-toggle-ready])').forEach((input) => {
+    input.dataset.passwordToggleReady = "true";
+    const wrapper = document.createElement("div");
+    wrapper.className = "password-field";
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "password-toggle";
+    button.dataset.action = "toggle-password";
+    button.setAttribute("aria-label", "Ver contraseÃ±a");
+    button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+    wrapper.appendChild(button);
+  });
+}
+
 function syncRegisterMode() {
   if (registerMode) ensureRegisterFields();
   else removeRegisterFields();
@@ -65,15 +83,36 @@ function syncRegisterMode() {
   const emailLabel = document.querySelector('label[for="usuario"]');
   const emailInput = document.getElementById("usuario");
   const title = document.querySelector(".login-title");
-  if (emailLabel) emailLabel.textContent = registerMode ? "Email" : "Usuario";
-  if (emailInput) emailInput.placeholder = registerMode ? "correo" : "correo";
+  if (emailLabel) emailLabel.textContent = registerMode ? "Email" : "Correo";
+  if (emailInput) emailInput.placeholder = "Correo";
   if (title) title.innerHTML = registerMode ? "Registrarse" : "Inicia<br>Sesion";
 
   submitButton.textContent = registerMode ? "Registrarse" : "Entrar";
   registerLink.textContent = registerMode ? "Iniciar sesion" : "Registrarse";
+  enhancePasswordToggles();
 }
 
-const registeredEmailMessage = "ERROR. E-mail ya REGISTRADO. Si has USADO nuestros productos PREVIAMENTE tu registro fue generado por Kairen en automático. SOLICITA un email con tu contraseña.";
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "whatsapp") {
+    e.target.value = e.target.value.replace(/\D/g, "");
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const button = e.target.closest('[data-action="toggle-password"]');
+  if (!button) return;
+
+  const input = button.closest(".password-field")?.querySelector("input");
+  if (!input) return;
+
+  const visible = input.type === "text";
+  input.type = visible ? "password" : "text";
+  input.dataset.passwordVisible = visible ? "false" : "true";
+  button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+  button.setAttribute("aria-label", visible ? "Ver contraseÃ±a" : "Ocultar contraseÃ±a");
+});
+
+const registeredEmailMessage = "ERROR. E-mail ya REGISTRADO. Si has USADO nuestros productos PREVIAMENTE tu registro fue generado por Kairen en automÃ¡tico. SOLICITA un email con tu contraseÃ±a.";
 
 function isAlreadyRegisteredError(error) {
   const message = String(error?.message ?? "").toLowerCase();
@@ -83,12 +122,33 @@ function isAlreadyRegisteredError(error) {
     || message.includes("registered");
 }
 
+async function isRegisteredEmail(email) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle();
+
+  if (error) {
+    console.info("[HR] recovery user check skipped:", error.message);
+    return true;
+  }
+
+  return Boolean(data);
+}
+
 passwordResetLink?.addEventListener("click", async (e) => {
   e.preventDefault();
 
   const email = document.getElementById("usuario").value.trim();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    alert("Ingresa tu email en el campo Usuario antes de solicitar recuperación.");
+    alert("Usuario no registrado");
+    return;
+  }
+
+  const registered = await isRegisteredEmail(email);
+  if (!registered) {
+    alert("Usuario no registrado");
     return;
   }
 
@@ -97,11 +157,11 @@ passwordResetLink?.addEventListener("click", async (e) => {
   });
 
   if (error) {
-    alert(error.message || "No se pudo enviar el email de recuperación.");
+    alert(error.message || "No se pudo enviar el email de recuperaciÃ³n.");
     return;
   }
 
-  alert("Email de recuperación enviado.");
+  alert("Email de recuperaciÃ³n enviado.");
 });
 
 registerLink?.addEventListener("click", (e) => {
