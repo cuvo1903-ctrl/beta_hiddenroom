@@ -267,11 +267,27 @@ async function loadScoreAccount() {
 
   GS.authUser = user;
 
-  const { data: profile, error } = await supabase
+  let { data: profile, error } = await supabase
     .from('users')
     .select('id, user_id')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (!error && !profile?.user_id) {
+    const { data: ensuredUserId, error: ensureError } = await supabase.rpc('ensure_my_user_id');
+    if (!ensureError && ensuredUserId) {
+      const refreshed = await supabase
+        .from('users')
+        .select('id, user_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      profile = refreshed.data ?? { id: user.id, user_id: ensuredUserId };
+      error = refreshed.error;
+    } else if (ensureError) {
+      console.info('[HR game] user_id ensure unavailable:', ensureError.message);
+    }
+  }
 
   if (error || !profile?.user_id) {
     console.info('[HR game] profile unavailable:', error?.message);

@@ -73,7 +73,7 @@ function enhancePasswordToggles(root = document) {
     button.type = "button";
     button.className = "password-toggle";
     button.dataset.action = "toggle-password";
-    button.setAttribute("aria-label", "Ver contraseÃ±a");
+    button.setAttribute("aria-label", "Ver contraseña");
     button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
     wrapper.appendChild(button);
   });
@@ -112,10 +112,10 @@ document.addEventListener("click", (e) => {
   input.type = visible ? "password" : "text";
   input.dataset.passwordVisible = visible ? "false" : "true";
   button.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
-  button.setAttribute("aria-label", visible ? "Ver contraseÃ±a" : "Ocultar contraseÃ±a");
+  button.setAttribute("aria-label", visible ? "Ver contraseña" : "Ocultar contraseña");
 });
 
-const registeredEmailMessage = "ERROR. E-mail ya REGISTRADO. Si has USADO nuestros productos PREVIAMENTE tu registro fue generado por Kairen en automÃ¡tico. SOLICITA un email con tu contraseÃ±a.";
+const registeredEmailMessage = "ERROR. E-mail ya REGISTRADO. Si has USADO nuestros productos PREVIAMENTE tu registro fue generado por Kairen en automático. SOLICITA un email con tu contraseña.";
 
 function isAlreadyRegisteredError(error) {
   const message = String(error?.message ?? "").toLowerCase();

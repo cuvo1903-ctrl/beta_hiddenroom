@@ -478,11 +478,10 @@ function sortRowsByColumn(rows, field, direction = 'asc') {
 }
 
 function adminTableSearchFor(tableName) {
-  return state.data.adminTableSearches?.[tableName] ?? state.data.adminTableLastSearch ?? '';
+  return state.data.adminTableSearches?.[tableName] ?? '';
 }
 
 function setAdminTableSearch(tableName, query) {
-  state.data.adminTableLastSearch = query;
   state.data.adminTableSearches = {
     ...(state.data.adminTableSearches ?? {}),
     [tableName]: query,
@@ -568,7 +567,45 @@ const userLabel = (userId) => {
 
 const usernameLabel = (user) => user?.username ? `@${user.username}` : '@sin_username';
 
+async function ensureCurrentUserOperationalId(authUser, profile = null) {
+  if (profile?.user_id) return profile;
+  if (!authUser?.id) return profile;
+
+  try {
+    const { data: ensuredUserId, error: ensureError } = await supabase.rpc('ensure_my_user_id');
+    if (ensureError) {
+      console.info('[HR] ensure user_id skipped:', ensureError.message);
+      return profile;
+    }
+
+    if (!ensuredUserId) return profile;
+
+    const { data: freshProfile, error: freshError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (freshError) {
+      console.info('[HR] profile refresh after user_id skipped:', freshError.message);
+      return { ...(profile ?? {}), id: authUser.id, user_id: ensuredUserId };
+    }
+
+    return freshProfile ?? { ...(profile ?? {}), id: authUser.id, user_id: ensuredUserId };
+  } catch (err) {
+    console.info('[HR] ensure user_id failed:', err?.message ?? err);
+    return profile;
+  }
+}
+
 async function syncLocalStorageRecords() {
+  if (!state.user?.user_id) {
+    const profile = await ensureCurrentUserOperationalId(state.user, state.user);
+    if (profile?.user_id) {
+      state.user = { ...state.user, ...profile };
+    }
+  }
+
   if (!state.user?.user_id) return;
 
   for (const key of LOCAL_SCORE_SYNC_KEYS) {
@@ -605,6 +642,7 @@ async function syncLocalStorageRecords() {
         game_id: gameId,
         type: 'record',
         amount,
+        username: state.user.username ?? state.user.display_name ?? state.user.email ?? null,
       };
 
       const { error: saveError } = existing?.id
@@ -658,8 +696,10 @@ async function bootstrapSession() {
       console.error('[HR] bootstrapSession: could not fetch profile', profileError);
     }
 
+    const resolvedProfile = await ensureCurrentUserOperationalId(authUser, profile);
+
     // Merge auth user as fallback so email/id are always available
-    const mergedUser = profile ? { ...authUser, ...profile } : authUser;
+    const mergedUser = resolvedProfile ? { ...authUser, ...resolvedProfile } : authUser;
 
     // Expand roles cumulatively from public.users.roles field
     const roles = expandRoles(mergedUser.roles);
@@ -3634,7 +3674,10 @@ async function handleAdminTableDelete(tableName, encodedRow) {
   }
 
   const label = config.label || tableName;
-  const readable = original.display_name || original.username || original.concept || original.name || original.id || original.user_id || 'esta fila';
+  const prefersConcept = tableName === 'transactions' || tableName === 'hr_transactions' || tableName === 'sessions';
+  const readable = prefersConcept
+    ? (original.concept || original.name || original.id || original.user_id || 'esta fila')
+    : (original.display_name || original.username || original.concept || original.name || original.id || original.user_id || 'esta fila');
   const confirmed = window.confirm(
     `Advertencia: vas a eliminar permanentemente ${readable} de ${label}.\n\nEsta acción no se puede deshacer. ¿Confirmas la eliminación?`
   );
