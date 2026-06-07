@@ -56,11 +56,6 @@
     </div>
 
     <div class="db-topbar__actions">
-      <!-- Sidebar toggle (mobile) -->
-      <button class="db-sidebar__toggle" id="js-sidebar-toggle" aria-label="Abrir menú lateral" aria-expanded="false" aria-controls="js-sidebar">
-        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
-      </button>
-
       <!-- Notification bell -->
       <button
         class="db-topbar__icon-btn"
@@ -73,11 +68,11 @@
         <span class="db-badge" id="js-notif-count" aria-label="notificaciones sin leer" hidden></span>
       </button>
 
-      <!-- User chip -->
-      <button class="db-user-chip" id="js-user-menu-toggle" aria-haspopup="true" aria-expanded="false">
+      <!-- Unified navigation / user menu -->
+      <button class="db-user-chip" id="js-user-menu-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="js-user-menu js-sidebar" aria-label="Abrir menú">
+        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
         <span class="db-user-chip__avatar" id="js-user-avatar" aria-hidden="true"></span>
         <span class="db-user-chip__name"   id="js-user-display-name">—</span>
-        <span class="db-icon db-icon--chevron" aria-hidden="true"></span>
       </button>
 
       <!-- User dropdown (rendered by JS) -->
@@ -175,6 +170,12 @@
               <span class="db-sidebar__item-text">Premios</span>
             </button>
           </li>
+          <li>
+            <button class="db-sidebar__item" data-sidebar-action="minigames">
+              <span class="db-icon db-icon--grid" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">Minijuegos</span>
+            </button>
+          </li>
         </ul>
 
         <!-- ── ROLE: collaborator ─────────────────── -->
@@ -269,6 +270,28 @@
             <button class="db-sidebar__item" data-section="admin-table-editor">
               <span class="db-icon db-icon--settings" aria-hidden="true"></span>
               <span class="db-sidebar__item-text">BB.DD</span>
+            </button>
+          </li>
+        </ul>
+
+        <ul class="db-sidebar__group db-sidebar__group--account" role="list">
+          <li class="db-sidebar__label" aria-hidden="true">Cuenta</li>
+          <li>
+            <button class="db-sidebar__item" data-sidebar-action="profile">
+              <span class="db-icon db-icon--users" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">Perfil</span>
+            </button>
+          </li>
+          <li>
+            <button class="db-sidebar__item" data-section="account-settings">
+              <span class="db-icon db-icon--settings" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">Ajustes</span>
+            </button>
+          </li>
+          <li>
+            <button class="db-sidebar__item db-sidebar__item--danger" data-sidebar-action="logout">
+              <span class="db-icon db-icon--settings" aria-hidden="true"></span>
+              <span class="db-sidebar__item-text">Cerrar sesión</span>
             </button>
           </li>
         </ul>

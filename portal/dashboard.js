@@ -359,7 +359,27 @@ const SUGGESTED_PERMISSIONS = [
   'erp.finance.input',
   'erp.ops.input',
   'rrpp.manage',
+  'events.access',
 ];
+
+const EVENT_PERMISSION_FLAGS = [
+  ['can_view', 'Ver Evento'],
+  ['can_add_finance', 'Capturar Finanzas'],
+  ['can_edit_finance', 'Editar Finanzas'],
+  ['can_edit_scrum', 'Editar SCRUM'],
+];
+
+const EVENT_MOVEMENT_TYPES = [
+  { value: 'income', label: 'Ingreso', sign: 1, legacyType: 'INGRESO' },
+  { value: 'expense', label: 'Egreso', sign: -1, legacyType: 'EGRESO' },
+  { value: 'investment_in', label: 'Inversión ingresada', sign: 1, legacyType: 'INVERSION INGRESADA' },
+  { value: 'investment_return', label: 'Utilidad devuelta', sign: -1, legacyType: 'UTILIDAD DEVUELTA' },
+  { value: 'counterparty_transfer', label: 'Entrega a favor', sign: 1, legacyType: 'ENTREGA A FAVOR' },
+  { value: 'internal_absorption', label: 'Absorción interna', sign: 1, legacyType: 'ABSORCION INTERNA' },
+  { value: 'adjustment', label: 'Ajuste', sign: 1, legacyType: 'AJUSTE' },
+];
+
+const EVENT_STATUS_OPTIONS = ['draft', 'active', 'closed', 'cancelled'];
 
 const ADMIN_TABLE_FETCH_SIZE = 1000;
 
@@ -411,6 +431,14 @@ const TABLE_EDITOR_CONFIG = {
     select: 'id, user_id, concept',
     lockedFields: ['id'],
     editableFields: ['user_id', 'concept'],
+    hiddenColumns: ['id'],
+  },
+  events: {
+    label: 'Eventos',
+    primaryKey: 'id',
+    select: 'id, event_key, name, event_date, venue, city, status, notes',
+    lockedFields: ['id'],
+    editableFields: ['event_key', 'name', 'event_date', 'venue', 'city', 'status', 'notes'],
     hiddenColumns: ['id'],
   },
 };
@@ -887,29 +915,54 @@ function updateSidebarActiveState(activeKey) {
 }
 
 function attachSidebarListeners() {
-  document.querySelectorAll('.db-sidebar__item').forEach((btn) => {
+  document.querySelectorAll('.db-sidebar__item[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => {
       navigate(btn.dataset.section);
-      setState({ sidebarOpen: false });
-      document.getElementById('js-sidebar')?.classList.remove('db-sidebar--open');
-      document.getElementById('js-sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+      closeUnifiedNavigation();
     });
   });
 
-  const toggle = document.getElementById('js-sidebar-toggle');
-  if (toggle) {
-    toggle.addEventListener('click', () => {
-      const open = !state.sidebarOpen;
-      setState({ sidebarOpen: open });
-      document.getElementById('js-sidebar')?.classList.toggle('db-sidebar--open', open);
-      toggle.setAttribute('aria-expanded', String(open));
+  document.querySelectorAll('.db-sidebar__item[data-sidebar-action]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handleNavigationAction(btn.dataset.sidebarAction);
+      closeUnifiedNavigation();
     });
-  }
+  });
 
   // Tap on the topbar context label also toggles the sidebar on mobile
   document.querySelector('.db-topbar__context')?.addEventListener('click', () => {
-    toggle?.click();
+    toggleUnifiedNavigation();
   });
+}
+
+function toggleUnifiedNavigation({ menuOnly = false } = {}) {
+  const toggle = document.getElementById('js-user-menu-toggle');
+  const menu = document.getElementById('js-user-menu');
+  const sidebar = document.getElementById('js-sidebar');
+  const shouldOpenMenu = menu?.hidden;
+  const isMobile = window.matchMedia('(max-width: 800px)').matches;
+
+  if (!menuOnly && isMobile) {
+    const open = !state.sidebarOpen;
+    if (menu) menu.hidden = true;
+    setState({ sidebarOpen: open });
+    sidebar?.classList.toggle('db-sidebar--open', open);
+    toggle?.setAttribute('aria-expanded', String(Boolean(open)));
+    return;
+  }
+
+  if (menu) menu.hidden = !shouldOpenMenu;
+  toggle?.setAttribute('aria-expanded', String(Boolean(shouldOpenMenu)));
+}
+
+function closeUnifiedNavigation() {
+  const toggle = document.getElementById('js-user-menu-toggle');
+  const menu = document.getElementById('js-user-menu');
+  const sidebar = document.getElementById('js-sidebar');
+  if (menu) menu.hidden = true;
+  setState({ sidebarOpen: false });
+  sidebar?.classList.remove('db-sidebar--open');
+  toggle?.setAttribute('aria-expanded', 'false');
 }
 
 
@@ -1050,31 +1103,29 @@ function attachUserMenuListeners() {
 
   toggle?.addEventListener('click', (e) => {
     e.stopPropagation();
-    const open = menu?.hidden;
-    if (menu) menu.hidden = !open;
-    toggle.setAttribute('aria-expanded', String(open));
+    toggleUnifiedNavigation();
   });
 
   menu?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
 
-    const action = btn.dataset.action;
-
-    if (action === 'logout')   handleLogout();
-    if (action === 'profile')  navigate('overview');
-    if (action === 'settings') navigate('account-settings');
-
-    if (menu) menu.hidden = true;
-    toggle?.setAttribute('aria-expanded', 'false');
+    handleNavigationAction(btn.dataset.action);
+    closeUnifiedNavigation();
   });
 
   document.addEventListener('click', () => {
     if (menu && !menu.hidden) {
-      menu.hidden = true;
-      toggle?.setAttribute('aria-expanded', 'false');
+      closeUnifiedNavigation();
     }
   });
+}
+
+function handleNavigationAction(action) {
+  if (action === 'logout')   handleLogout();
+  if (action === 'profile')  navigate('overview');
+  if (action === 'settings') navigate('account-settings');
+  if (action === 'minigames') window.location.href = '../minijuegos/';
 }
 
 function handleLogout() {
@@ -1195,6 +1246,7 @@ function buildQuickActions(roles) {
   const actions = [];
 
   if (roles.includes('client')) {
+    actions.push({ label: 'Cliente > Premios', caption: 'Puntaje de minijuegos', section: 'client-rewards' });
     actions.push({ label: 'Ver Sesiones',      section: 'client-sessions'     });
     actions.push({ label: 'Mis Transacciones', section: 'client-transactions' });
   }
@@ -1212,7 +1264,10 @@ function buildQuickActions(roles) {
 
   return actions.map((a) => `
     <button class="db-quick-action" data-section="${escapeHTML(a.section)}">
-      ${escapeHTML(a.label)}
+      <span class="db-quick-action__copy">
+        <span>${escapeHTML(a.label)}</span>
+        ${a.caption ? `<small>${escapeHTML(a.caption)}</small>` : ''}
+      </span>
       <span class="db-quick-action__arrow" aria-hidden="true">-></span>
     </button>
   `).join('');
@@ -1627,6 +1682,7 @@ async function renderClientRewards() {
       <header class="db-section__header">
         <p class="section-label">Cliente</p>
         <h1 class="db-section__title" id="title-rewards">Premios</h1>
+        <a class="btn-primary db-section__cta" href="../minijuegos/">MINIJUEGOS</a>
       </header>
       <div class="db-grid db-grid--3col">
         <article class="db-card" aria-label="Puntuaciones">
@@ -1691,12 +1747,27 @@ async function renderCollabDocs() {
 
 async function renderCollabFinance() {
   await ensureUsersLoaded();
+  if (!hasRole('admin') && !hasPermission('events.access')) {
+    return sectionShell('Colaborador', 'Financiero', 'title-collab-finance', `
+      <p class="db-empty db-empty--error">No tienes permiso para ver finanzas de eventos.</p>
+    `);
+  }
+
   const filters = getEventFinanceFilters();
   const events = await ensureCollabFinanceEventsLoaded();
-  if (state.data.collabFinanceEventId && !events.some((event) => normalizeEventKey(event.event_key) === normalizeEventKey(state.data.collabFinanceEventId))) {
+  if (!events.length) {
+    return sectionShell('Colaborador', 'Financiero', 'title-collab-finance', `
+      <p class="db-empty">No tienes eventos asignados todavía.</p>
+    `);
+  }
+
+  if (state.data.collabFinanceEventId && !events.some((event) => String(event.id ?? event.event_id) === String(state.data.collabFinanceEventId))) {
     state.data.collabFinanceEventId = '';
   }
-  const eventId = state.data.collabFinanceEventId ?? '';
+  const eventId = state.data.collabFinanceEventId || String(events[0].id ?? events[0].event_id);
+  state.data.collabFinanceEventId = eventId;
+  const selectedEvent = events.find((event) => String(event.id ?? event.event_id) === String(eventId));
+  const permissions = eventAccessFor(selectedEvent, false);
   const { data, error } = await fetchCollabFinanceTransactions(filters, eventId, events);
 
   if (error) {
@@ -1709,15 +1780,17 @@ async function renderCollabFinance() {
   return sectionShell('Colaborador', 'Financiero', 'title-collab-finance', `
     ${renderCollabFinanceEventFilter(events, eventId)}
     ${renderFinanceFilters(filters)}
-    ${renderFinanceMetrics(data ?? [], eventFinanceAmount, { balanceFromAmountWhenNoIncomeExpense: true })}
-    ${renderEventFinanceTransactionsTable(data ?? [])}
+    ${renderEventInfo(selectedEvent)}
+    ${renderEventSummaryCards(eventSummaryFor(selectedEvent, data ?? []))}
+    ${permissions.can_add_finance ? renderEventMovementForm(selectedEvent, 'collab-event-movement-create') : ''}
+    ${renderEventFinanceTransactionsTable(data ?? [], { canEdit: permissions.can_edit_finance })}
   `);
 }
 
 async function ensureCollabFinanceEventsLoaded() {
-  if (hasEventKeyCache(state.data.collabFinanceEvents)) return state.data.collabFinanceEvents;
+  if (Array.isArray(state.data.collabFinanceEvents)) return state.data.collabFinanceEvents;
 
-  state.data.collabFinanceEvents = await fetchEventFinanceOptions('collab finance');
+  state.data.collabFinanceEvents = await fetchAccessibleEventFinanceOptions('collab finance');
   return state.data.collabFinanceEvents;
 }
 
@@ -1726,14 +1799,12 @@ async function fetchCollabFinanceTransactions(filters, eventId, events = []) {
 }
 
 function renderCollabFinanceEventFilter(events = [], selectedEventId = '') {
-  const keyedEvents = events.filter((event) => event.event_key);
   return `
     <div class="db-toolbar">
       <label class="db-field db-field--compact">
         <span>Eventos</span>
         <select data-action="collab-finance-event" aria-label="Filtrar financiero por evento">
-          ${optionHTML('', keyedEvents.length ? 'Todos los eventos' : 'Sin eventos disponibles', selectedEventId)}
-          ${keyedEvents.map((event) => optionHTML(event.event_key, event.name, selectedEventId)).join('')}
+          ${events.map((event) => optionHTML(String(event.id ?? event.event_id), eventLabel(event), selectedEventId)).join('')}
         </select>
       </label>
     </div>
@@ -2046,6 +2117,37 @@ async function renderErpFinance() {
   const baseFilters = getFinanceFilters();
   const filters = baseFilters.scope === 'events' ? getEventFinanceFilters(baseFilters) : baseFilters;
   const events = await ensureFinanceEventsLoaded();
+  if (filters.scope === 'events') {
+    if (filters.eventId && !events.some((event) => String(event.id) === String(filters.eventId))) {
+      filters.eventId = '';
+      state.data.financeEventId = '';
+    }
+    if (!filters.eventId && events.length) {
+      filters.eventId = String(events[0].id);
+      state.data.financeEventId = filters.eventId;
+    }
+
+    const selectedEvent = events.find((event) => String(event.id) === String(filters.eventId));
+    const { data, error } = await fetchFinanceTransactions(filters, events);
+    if (error) {
+      console.error('[HR] renderErpFinance events:', error);
+      return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
+        <p class="db-empty db-empty--error">No se pudo cargar el dashboard financiero de eventos.</p>
+      `);
+    }
+
+    state.data.erpFinanceRows = data ?? [];
+    state.data.erpFinanceFilters = filters;
+
+    return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
+      ${renderFinanceScopeFilters(filters, events)}
+      ${renderFinanceFilters(filters)}
+      ${selectedEvent ? renderEventInfo(selectedEvent) : '<p class="db-empty">Sin eventos disponibles.</p>'}
+      ${selectedEvent ? renderEventSummaryCards(selectedEvent) : ''}
+      ${renderEventFinanceTransactionsTable(data ?? [], { canEdit: true })}
+    `);
+  }
+
   if (filters.scope === 'events' && filters.eventId && !events.some((event) => normalizeEventKey(event.event_key) === normalizeEventKey(filters.eventId))) {
     filters.eventId = '';
     state.data.financeEventId = '';
@@ -2074,6 +2176,7 @@ async function renderErpFinance() {
 
 async function renderErpOps() {
   await ensureUsersLoaded();
+  const events = await ensureFinanceEventsLoaded();
   const activeForm = state.data.erpOpsForm || 'transaction';
   const opsForms = {
     transaction: {
@@ -2159,6 +2262,31 @@ async function renderErpOps() {
         </form>
       `,
     },
+    event: {
+      label: 'Evento',
+      html: `
+        <form class="db-form" data-form="event-create">
+          <div class="db-form__row">
+            <label class="db-field"><span>Clave del evento</span><input name="event_key" required /></label>
+            <label class="db-field"><span>Nombre</span><input name="name" required /></label>
+          </div>
+          <div class="db-form__row">
+            <label class="db-field"><span>Fecha</span><input name="event_date" type="date" /></label>
+            <label class="db-field"><span>Status</span><select name="status">${EVENT_STATUS_OPTIONS.map((status) => optionHTML(status, status, 'closed')).join('')}</select></label>
+          </div>
+          <div class="db-form__row">
+            <label class="db-field"><span>Venue</span><input name="venue" /></label>
+            <label class="db-field"><span>Ciudad</span><input name="city" /></label>
+          </div>
+          <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
+          <button class="btn-primary" type="submit">Crear evento</button>
+        </form>
+      `,
+    },
+    eventMovement: {
+      label: 'Nuevo movimiento',
+      html: renderEventMovementOpsForm(events),
+    },
     userMerge: {
       label: 'Fusionar usuarios',
       html: `
@@ -2198,6 +2326,8 @@ async function renderErpOps() {
             ['download', 'Descarga'],
             ['contract', 'Contrato'],
             ['user', 'Usuario'],
+            ['event', 'Evento'],
+            ['eventMovement', 'Nuevo movimiento'],
             ['userMerge', 'Fusionar usuarios'],
           ].map(([value, label]) => optionHTML(value, label, activeForm)).join('')}
         </select>
@@ -2273,9 +2403,9 @@ async function fetchTransactions(filters, userId = null) {
 }
 
 async function ensureFinanceEventsLoaded() {
-  if (hasEventKeyCache(state.data.financeEvents)) return state.data.financeEvents;
+  if (Array.isArray(state.data.financeEvents)) return state.data.financeEvents;
 
-  state.data.financeEvents = await fetchEventFinanceOptions('erp finance');
+  state.data.financeEvents = await fetchAdminEventFinanceOptions('erp finance');
   return state.data.financeEvents;
 }
 
@@ -2284,9 +2414,6 @@ async function fetchFinanceTransactions(filters, events = []) {
     return buildFinanceTransactionQuery('transactions', filters).eq('studio', filters.studio);
   }
 
-  const base = () => buildFinanceTransactionQuery('hr_transactions', filters);
-  if (!filters.eventId) return base();
-
   return fetchHrEventFinanceTransactions(filters, filters.eventId, events);
 }
 
@@ -2294,44 +2421,48 @@ function buildFinanceTransactionQuery(tableName, filters) {
   let query = supabase
     .from(tableName)
     .select('*')
-    .order('date', { ascending: false });
+    .order(tableName === 'hr_transactions' ? 'movement_date' : 'date', { ascending: false });
 
-  query = applyFinanceDateRange(query, filters);
+  query = applyFinanceDateRange(query, filters, tableName === 'hr_transactions' ? 'movement_date' : 'date');
 
-  if (filters.type === 'ingresos') query = query.in('type', ['INGRESO', 'income', 'ingresos']);
-  if (filters.type === 'egresos') query = query.in('type', ['EGRESO', 'expense', 'egresos']);
+  if (tableName === 'hr_transactions') {
+    if (filters.type === 'ingresos') query = query.eq('movement_type', 'income');
+    if (filters.type === 'egresos') query = query.eq('movement_type', 'expense');
+  } else {
+    if (filters.type === 'ingresos') query = query.in('type', ['INGRESO', 'income', 'ingresos']);
+    if (filters.type === 'egresos') query = query.in('type', ['EGRESO', 'expense', 'egresos']);
+  }
 
   return query;
 }
 
 async function fetchHrEventFinanceTransactions(filters, eventId, events = []) {
-  const eventKey = normalizeEventKey(eventId);
-  const selectedEvent = events.find((event) => normalizeEventKey(event.event_key) === eventKey);
-  const selectedEventKey = normalizeEventKey(selectedEvent?.event_key ?? eventId);
-  const result = await buildFinanceTransactionQuery('hr_transactions', filters);
+  const selectedEvent = events.find((event) => String(event.id ?? event.event_id) === String(eventId));
+  let query = buildFinanceTransactionQuery('hr_transactions', filters);
 
-  if (result.error || !selectedEventKey) return result;
+  if (selectedEvent?.id || selectedEvent?.event_id) {
+    query = query.eq('event_id', selectedEvent.id ?? selectedEvent.event_id);
+  } else if (selectedEvent?.event_key || eventId) {
+    query = query.eq('event_key', selectedEvent?.event_key ?? eventId);
+  }
 
-  return {
-    ...result,
-    data: (result.data ?? []).filter((tx) => normalizeEventKey(tx.event_key) === selectedEventKey),
-  };
+  return query;
 }
 
 function normalizeEventKey(value) {
   return String(value ?? '').trim().toUpperCase();
 }
 
-function applyFinanceDateRange(query, filters) {
+function applyFinanceDateRange(query, filters, dateField = 'date') {
   if (filters.year && filters.month) {
     const start = `${filters.year}-${filters.month}-01`;
     const endDate = new Date(Number(filters.year), Number(filters.month), 1);
     const end = endDate.toISOString().slice(0, 10);
-    return query.gte('date', start).lt('date', end);
+    return query.gte(dateField, start).lt(dateField, end);
   }
 
   if (filters.year) {
-    return query.gte('date', `${filters.year}-01-01`).lt('date', `${Number(filters.year) + 1}-01-01`);
+    return query.gte(dateField, `${filters.year}-01-01`).lt(dateField, `${Number(filters.year) + 1}-01-01`);
   }
 
   return query;
@@ -2344,10 +2475,10 @@ function financePeriodLabel(filters) {
 }
 
 function renderFinanceScopeFilters(filters, events = []) {
-  const keyedEvents = events.filter((event) => event.event_key);
+  const keyedEvents = events.filter((event) => event.id || event.event_id || event.event_key);
   const secondaryOptions = filters.scope === 'events'
     ? (keyedEvents.length
-      ? [['', 'Todos los eventos'], ...keyedEvents.map((event) => [event.event_key, event.name])]
+      ? keyedEvents.map((event) => [String(event.id ?? event.event_id ?? event.event_key), eventLabel(event)])
       : [['', 'Sin eventos disponibles']])
     : FINANCE_STUDIO_SOURCES.map((item) => [item.value, item.label]);
 
@@ -2424,6 +2555,138 @@ function renderFinanceMetrics(transactions, amountGetter = transactionAmount, op
   `;
 }
 
+function eventAccessFor(event, adminDefault = hasRole('admin')) {
+  return {
+    can_view: adminDefault || Boolean(event?.can_view),
+    can_add_finance: adminDefault || Boolean(event?.can_add_finance),
+    can_edit_finance: adminDefault || Boolean(event?.can_edit_finance),
+    can_edit_scrum: adminDefault || Boolean(event?.can_edit_scrum),
+  };
+}
+
+function renderEventInfo(event) {
+  if (!event) return '';
+  return `
+    <div class="db-grid db-grid--3col">
+      ${renderStatCard('Evento', event.name ?? event.event_key ?? '-')}
+      ${renderStatCard('Clave', event.event_key ?? '-')}
+      ${renderStatCard('Fecha / status', `${formatDateOnly(event.event_date)} · ${event.status ?? '-'}`)}
+    </div>
+  `;
+}
+
+function renderEventSummaryCards(event) {
+  const metrics = [
+    ['Ingresos', event?.ingresos],
+    ['Egresos', event?.egresos],
+    ['Inversión ingresada', event?.inversion_ingresada],
+    ['Utilidad devuelta', event?.utilidad_devuelta],
+    ['Entregas a favor', event?.entregas_a_favor],
+    ['M.A.I.', event?.mai],
+    ['Hidden Room Share', event?.hidden_room_share_total],
+    ['Balance evento', event?.balance_evento],
+  ];
+
+  return `
+    <div class="db-grid db-grid--4col db-finance-summary">
+      ${metrics.map(([label, value]) => renderStatCard(label, money(value ?? 0))).join('')}
+    </div>
+  `;
+}
+
+function eventSummaryFor(event, transactions = []) {
+  const hasViewSummary = [
+    'ingresos',
+    'egresos',
+    'inversion_ingresada',
+    'utilidad_devuelta',
+    'entregas_a_favor',
+    'mai',
+    'hidden_room_share_total',
+    'balance_evento',
+  ].some((key) => event?.[key] !== undefined && event?.[key] !== null);
+
+  if (hasViewSummary) return event;
+
+  const amountByType = (type) => transactions
+    .filter((tx) => tx.movement_type === type)
+    .reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
+  const hiddenRoomShareTotal = transactions.reduce((sum, tx) => sum + Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0), 0);
+  const amountTotal = transactions.reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
+
+  return {
+    ...(event ?? {}),
+    ingresos: amountByType('income'),
+    egresos: Math.abs(amountByType('expense')),
+    inversion_ingresada: amountByType('investment_in'),
+    utilidad_devuelta: Math.abs(amountByType('investment_return')),
+    entregas_a_favor: amountByType('counterparty_transfer'),
+    mai: hiddenRoomShareTotal,
+    hidden_room_share_total: hiddenRoomShareTotal,
+    balance_evento: amountTotal + hiddenRoomShareTotal,
+  };
+}
+
+function renderEventMovementForm(event, formName) {
+  const today = todayDateInputValue();
+  return `
+    <article class="db-card">
+      <header class="db-card__header"><span class="section-label">Nuevo movimiento</span></header>
+      <div class="db-card__inner">
+        <form class="db-form" data-form="${escapeAttr(formName)}">
+          <input type="hidden" name="event_id" value="${escapeAttr(event?.id ?? event?.event_id ?? '')}" />
+          <input type="hidden" name="event_key" value="${escapeAttr(event?.event_key ?? '')}" />
+          <label class="db-field"><span>Event</span><input value="${escapeAttr(eventLabel(event ?? {}))}" readonly /></label>
+          <div class="db-form__row">
+            <label class="db-field"><span>Movement Type</span><select name="movement_type" required>${EVENT_MOVEMENT_TYPES.map((item) => optionHTML(item.value, item.label, '')).join('')}</select></label>
+            <label class="db-field"><span>Amount</span><input name="amount" type="number" step="0.01" required /></label>
+          </div>
+          <label class="db-field"><span>Concept</span><input name="concept" required /></label>
+          <div class="db-form__row">
+            <label class="db-field"><span>Hidden Room Share</span><input name="hidden_room_share" type="number" step="0.01" value="0" /></label>
+            <label class="db-field"><span>Payment Method</span><input name="payment_method" /></label>
+          </div>
+          <label class="db-field"><span>Date</span><input name="movement_date" type="date" value="${escapeAttr(today)}" required /></label>
+          <label class="db-field"><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+          <button class="btn-primary" type="submit">Guardar movimiento</button>
+        </form>
+      </div>
+    </article>
+  `;
+}
+
+function renderEventMovementOpsForm(events = []) {
+  const today = todayDateInputValue();
+  const availableEvents = events.filter((event) => event.id || event.event_id);
+
+  if (!availableEvents.length) {
+    return '<p class="db-empty">Sin eventos disponibles para capturar movimientos.</p>';
+  }
+
+  return `
+    <form class="db-form" data-form="admin-event-movement-create">
+      <label class="db-field">
+        <span>Evento</span>
+        <select name="event_id" required>
+          ${availableEvents.map((event) => optionHTML(String(event.id ?? event.event_id), eventLabel(event), '')).join('')}
+        </select>
+      </label>
+      <div class="db-form__row">
+        <label class="db-field"><span>Movement Type</span><select name="movement_type" required>${EVENT_MOVEMENT_TYPES.map((item) => optionHTML(item.value, item.label, '')).join('')}</select></label>
+        <label class="db-field"><span>Amount</span><input name="amount" type="number" step="0.01" required /></label>
+      </div>
+      <label class="db-field"><span>Concept</span><input name="concept" required /></label>
+      <div class="db-form__row">
+        <label class="db-field"><span>Hidden Room Share</span><input name="hidden_room_share" type="number" step="0.01" value="0" /></label>
+        <label class="db-field"><span>Payment Method</span><input name="payment_method" /></label>
+      </div>
+      <label class="db-field"><span>Date</span><input name="movement_date" type="date" value="${escapeAttr(today)}" required /></label>
+      <label class="db-field"><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+      <button class="btn-primary" type="submit">Guardar movimiento</button>
+    </form>
+  `;
+}
+
 function renderTransactionsTable(transactions) {
   const tableId = `transactions-${state.activeSection}`;
   const activeSort = getTableSort(tableId, 'date', 'desc');
@@ -2461,36 +2724,40 @@ function renderTransactionsTable(transactions) {
   `;
 }
 
-function renderEventFinanceTransactionsTable(transactions) {
+function renderEventFinanceTransactionsTable(transactions, options = {}) {
   const tableId = `event-transactions-${state.activeSection}`;
-  const activeSort = getTableSort(tableId, 'date', 'desc');
+  const activeSort = getTableSort(tableId, 'movement_date', 'desc');
   const sortedTransactions = sortRowsByColumn(transactions, activeSort.field, activeSort.direction);
   const headers = [
     ['concept', 'Concepto'],
-    ['type', 'Tipo'],
-    ['date', 'Fecha'],
-    ['via', 'Via'],
+    ['movement_type', 'Tipo'],
+    ['amount', 'Monto'],
+    ['hidden_room_share', 'Hidden Room Share'],
+    ['movement_date', 'Fecha'],
+    ['payment_method', 'Metodo'],
     ['notes', 'Notas'],
-    ['M.A.I.', 'M.A.I.'],
   ];
   const rows = sortedTransactions.length
     ? sortedTransactions.map((tx) => `
       <tr>
         <td>${escapeHTML(tx.concept ?? '-')}</td>
-        <td>${escapeHTML(tx.type ?? '-')}</td>
-        <td>${escapeHTML(formatDateOnly(tx.date))}</td>
-        <td>${escapeHTML(tx.via ?? '-')}</td>
+        <td>${escapeHTML(movementTypeLabel(tx.movement_type) || tx.type || '-')}</td>
+        <td>${money(Number(tx.amount ?? 0))}</td>
+        <td>${money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0))}</td>
+        <td>${escapeHTML(formatDateOnly(tx.movement_date ?? tx.date))}</td>
+        <td>${escapeHTML(tx.payment_method ?? tx.via ?? '-')}</td>
         <td>${escapeHTML(tx.notes ?? '-')}</td>
-        <td>${money(eventFinanceAmount(tx))}</td>
+        ${options.canEdit ? `<td><button class="db-btn-secondary" type="button" data-action="event-movement-edit" data-event-movement="${escapeAttr(encodeURIComponent(JSON.stringify(tx)))}">Editar</button></td>` : ''}
       </tr>
     `).join('')
-    : '<tr class="db-table__empty-row"><td colspan="6" class="db-empty">Sin transacciones en el periodo.</td></tr>';
+    : `<tr class="db-table__empty-row"><td colspan="${options.canEdit ? 7 : 6}" class="db-empty">Sin transacciones en el periodo.</td></tr>`;
 
   return `
     <div class="db-table-wrap">
       <table class="db-table" aria-label="Desglose financiero de eventos">
         <thead><tr>
           ${headers.map(([field, label]) => renderSortableHeader(tableId, field, label, activeSort)).join('')}
+          ${options.canEdit ? '<th scope="col">Acciones</th>' : ''}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -2505,7 +2772,12 @@ async function renderErpPermissions() {
     `);
   }
 
-  const [{ data: users, error: usersError }, { data: permissions, error: permissionsError }] = await Promise.all([
+  const [
+    { data: users, error: usersError },
+    { data: permissions, error: permissionsError },
+    { data: events, error: eventsError },
+    { data: eventPermissions, error: eventPermissionsError },
+  ] = await Promise.all([
     supabase
       .from('users')
       .select('id, user_id, display_name, username, email, roles')
@@ -2514,10 +2786,17 @@ async function renderErpPermissions() {
       .from('user_permissions')
       .select('id, user_id, permission_key')
       .order('permission_key', { ascending: true }),
+    supabase
+      .from('events')
+      .select('id, event_key, name, event_date, status')
+      .order('event_date', { ascending: false }),
+    supabase
+      .from('event_user_permissions')
+      .select('id, event_id, user_id, can_view, can_add_finance, can_edit_finance, can_edit_scrum'),
   ]);
 
-  if (usersError || permissionsError) {
-    console.error('[HR] renderErpPermissions:', usersError || permissionsError);
+  if (usersError || permissionsError || eventsError || eventPermissionsError) {
+    console.error('[HR] renderErpPermissions:', usersError || permissionsError || eventsError || eventPermissionsError);
     return sectionShell('ERP', 'Permisos', 'title-erp-permissions', `
       <p class="db-empty db-empty--error">Error al cargar usuarios y permisos.</p>
     `);
@@ -2525,6 +2804,8 @@ async function renderErpPermissions() {
 
   state.data.permissionUsers = users ?? [];
   state.data.userPermissions = permissions ?? [];
+  state.data.permissionEvents = events ?? [];
+  state.data.eventUserPermissions = eventPermissions ?? [];
 
   const rows = (users ?? []).length
     ? users.map(renderPermissionUserRow).join('')
@@ -2832,7 +3113,15 @@ function transactionAmount(tx) {
 }
 
 function eventFinanceAmount(tx) {
-  return Number(tx?.['M.A.I.'] ?? tx?.['M.A.I'] ?? tx?.MAI ?? tx?.mai ?? 0);
+  return Number(tx?.hidden_room_share ?? tx?.['M.A.I.'] ?? tx?.['M.A.I'] ?? tx?.MAI ?? tx?.mai ?? 0);
+}
+
+function movementTypeConfig(value) {
+  return EVENT_MOVEMENT_TYPES.find((item) => item.value === value) ?? EVENT_MOVEMENT_TYPES[0];
+}
+
+function movementTypeLabel(value) {
+  return EVENT_MOVEMENT_TYPES.find((item) => item.value === value)?.label ?? '';
 }
 
 function financeTotals(transactions, amountGetter = transactionAmount, options = {}) {
@@ -2893,59 +3182,66 @@ function eventLabel(event) {
 }
 
 async function fetchEventFinanceOptions(context = 'finance') {
-  let eventRows = [];
+  return fetchAdminEventFinanceOptions(context);
+}
 
+async function fetchAdminEventFinanceOptions(context = 'finance') {
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('name, event_key')
-      .order('name', { ascending: true });
+      .from('hr_events_dashboard')
+      .select('*')
+      .order('event_date', { ascending: false });
 
     if (error) {
       console.info(`[HR] ${context} events unavailable:`, error.message);
-    } else {
-      eventRows = data ?? [];
+      return [];
     }
+
+    return normalizeEventFinanceOptions(data ?? []);
   } catch (err) {
     console.info(`[HR] ${context} events skipped:`, err?.message ?? err);
+    return [];
   }
+}
 
-  const { data: transactionEvents, error: transactionEventsError } = await supabase
-    .from('hr_transactions')
-    .select('event_key')
-    .not('event_key', 'is', null)
-    .order('event_key', { ascending: true });
+async function fetchAccessibleEventFinanceOptions(context = 'finance') {
+  if (hasRole('admin')) return fetchAdminEventFinanceOptions(context);
+  if (!state.user?.user_id) return [];
 
-  if (transactionEventsError) {
-    console.info(`[HR] ${context} hr transaction events unavailable:`, transactionEventsError.message);
-    return normalizeEventFinanceOptions(eventRows);
+  try {
+    const { data, error } = await supabase
+      .from('hr_events_user_access')
+      .select('*')
+      .eq('user_id', state.user.user_id)
+      .order('event_date', { ascending: false });
+
+    if (error) {
+      console.info(`[HR] ${context} assigned events unavailable:`, error.message);
+      return [];
+    }
+
+    return normalizeEventFinanceOptions(data ?? []);
+  } catch (err) {
+    console.info(`[HR] ${context} assigned events skipped:`, err?.message ?? err);
+    return [];
   }
-
-  const transactionKeys = [...new Set(
-    (transactionEvents ?? [])
-      .map((row) => String(row.event_key ?? '').trim())
-      .filter(Boolean)
-  )];
-  const transactionKeySet = new Set(transactionKeys.map(normalizeEventKey));
-  const eventOptions = normalizeEventFinanceOptions(eventRows);
-  const matchedEvents = eventOptions.filter((event) => transactionKeySet.has(normalizeEventKey(event.event_key)));
-  const matchedKeySet = new Set(matchedEvents.map((event) => normalizeEventKey(event.event_key)));
-  const transactionOnlyEvents = transactionKeys
-    .filter((eventKey) => !matchedKeySet.has(normalizeEventKey(eventKey)))
-    .map((eventKey) => ({ name: eventKey, event_key: eventKey }));
-
-  return normalizeEventFinanceOptions([...matchedEvents, ...transactionOnlyEvents]);
 }
 
 function normalizeEventFinanceOptions(events = []) {
   const seen = new Set();
   return (events ?? [])
     .map((event) => ({
+      ...event,
+      id: event?.id ?? event?.event_id ?? null,
+      event_id: event?.event_id ?? event?.id ?? null,
       name: String(event?.name ?? event?.event_key ?? '').trim(),
       event_key: String(event?.event_key ?? '').trim(),
     }))
-    .filter((event) => event.event_key && !seen.has(event.event_key) && seen.add(event.event_key))
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    .filter((event) => {
+      const key = String(event.id ?? event.event_id ?? event.event_key ?? '').trim();
+      return key && !seen.has(key) && seen.add(key);
+    })
+    .sort((a, b) => (b.event_date ?? '').localeCompare(a.event_date ?? '') || a.name.localeCompare(b.name, 'es'));
 }
 
 function hasEventKeyCache(events) {
@@ -3053,6 +3349,11 @@ async function handleErpForm(form) {
     return;
   }
 
+  if (type === 'collab-event-movement-create' || type === 'admin-event-movement-create') {
+    await handleEventMovementCreate(form, values);
+    return;
+  }
+
   if ('user_id' in values && !values.user_id) {
     showToast('Selecciona un usuario valido.', 'error');
     return;
@@ -3063,7 +3364,7 @@ async function handleErpForm(form) {
     if (values[key] != null) values[key] = Number(values[key]);
   });
 
-  ['date', 'session_date', 'due_date'].forEach((key) => {
+  ['date', 'session_date', 'due_date', 'event_date'].forEach((key) => {
     if (values[key]) values[key] = formatDateOnly(values[key]);
   });
 
@@ -3086,6 +3387,7 @@ async function handleErpForm(form) {
     'session-create': ['sessions', withTargetUsername(operationPayload), 'Sesion creada.'],
     'download-create': ['downloads', operationPayload, 'Descarga creada.'],
     'contract-create': ['contracts', operationPayload, 'Contrato creado.'],
+    'event-create': ['events', operationPayload, 'Evento creado.'],
   };
 
   const config = map[type];
@@ -3093,7 +3395,14 @@ async function handleErpForm(form) {
 
   const ok = await insertRow(config[0], config[1], config[2]);
   if (ok) {
-    await handleOperationReceipt(form, { silent: true });
+    if (type === 'event-create') {
+      // Fuerza a que los selectores y permisos usen el evento recién creado.
+      state.data.financeEvents = null;
+      state.data.collabFinanceEvents = null;
+      state.data.permissionEvents = null;
+    } else {
+      await handleOperationReceipt(form, { silent: true });
+    }
     form.reset();
   }
 }
@@ -3152,6 +3461,128 @@ async function handleAdminUserMerge(form, values = formValues(form)) {
       holder.textContent = message;
     }
   }
+}
+
+async function handleEventMovementCreate(form, values = formValues(form)) {
+  const isAdmin = hasRole('admin');
+  const eventId = values.event_id;
+  const eventKey = values.event_key;
+  const events = state.activeSection === 'collab-finance'
+    ? (state.data.collabFinanceEvents ?? [])
+    : (state.data.financeEvents ?? []);
+  const selectedEvent = events.find((event) => String(event.id ?? event.event_id) === String(eventId));
+  const permissions = eventAccessFor(selectedEvent, isAdmin);
+
+  if (!permissions.can_add_finance) {
+    showToast('No tienes permiso para capturar finanzas de este evento.', 'error');
+    return;
+  }
+
+  const movement = movementTypeConfig(values.movement_type);
+  const rawAmount = Math.abs(Number(values.amount ?? 0));
+  if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+    showToast('Ingresa un monto valido.', 'error');
+    return;
+  }
+
+  const signedAmount = rawAmount * movement.sign;
+  const hiddenRoomShare = Number(values.hidden_room_share ?? 0);
+  const movementDate = values.movement_date ? formatDateOnly(values.movement_date) : todayDateInputValue();
+  const payload = {
+    event_id: eventId || null,
+    event_key: eventKey || selectedEvent?.event_key || null,
+    movement_type: movement.value,
+    concept: values.concept,
+    amount: signedAmount,
+    hidden_room_share: Number.isFinite(hiddenRoomShare) ? hiddenRoomShare : 0,
+    payment_method: values.payment_method ?? null,
+    movement_date: movementDate,
+    notes: values.notes ?? null,
+    user_id: state.user?.user_id ?? null,
+    username: state.user?.username ?? state.user?.display_name ?? state.user?.email ?? null,
+    created_by: state.user?.id ?? null,
+    type: movement.legacyType,
+    via: values.payment_method ?? null,
+    date: movementDate,
+    'M.A.I.': Number.isFinite(hiddenRoomShare) ? hiddenRoomShare : 0,
+  };
+
+  const ok = await insertRow('hr_transactions', payload, 'Movimiento financiero creado.');
+  if (ok) {
+    form.reset();
+    state.data.financeEvents = null;
+    state.data.collabFinanceEvents = null;
+    navigate(state.activeSection);
+  }
+}
+
+async function handleEventMovementEdit(encodedTx) {
+  let tx;
+  try {
+    tx = JSON.parse(decodeURIComponent(encodedTx));
+  } catch (err) {
+    console.error('[HR] event movement edit parse:', err);
+    showToast('No se pudo leer el movimiento.', 'error');
+    return;
+  }
+
+  const events = state.activeSection === 'collab-finance'
+    ? (state.data.collabFinanceEvents ?? [])
+    : (state.data.financeEvents ?? []);
+  const selectedEvent = events.find((event) => String(event.id ?? event.event_id) === String(tx.event_id));
+  const permissions = eventAccessFor(selectedEvent, hasRole('admin'));
+  if (!permissions.can_edit_finance) {
+    showToast('No tienes permiso para editar finanzas de este evento.', 'error');
+    return;
+  }
+
+  const concept = window.prompt('Concepto', tx.concept ?? '');
+  if (concept === null) return;
+  const amountInput = window.prompt('Monto firmado', String(tx.amount ?? 0));
+  if (amountInput === null) return;
+  const hiddenShareInput = window.prompt('Hidden Room Share', String(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0));
+  if (hiddenShareInput === null) return;
+  const paymentMethod = window.prompt('Metodo de pago', tx.payment_method ?? tx.via ?? '');
+  if (paymentMethod === null) return;
+  const movementDate = window.prompt('Fecha', formatDateOnly(tx.movement_date ?? tx.date));
+  if (movementDate === null) return;
+  const notes = window.prompt('Notas', tx.notes ?? '');
+  if (notes === null) return;
+
+  const amount = Number(amountInput);
+  const hiddenRoomShare = Number(hiddenShareInput);
+  if (!Number.isFinite(amount) || !Number.isFinite(hiddenRoomShare)) {
+    showToast('Monto invalido.', 'error');
+    return;
+  }
+
+  const payload = {
+    concept: concept.trim() || null,
+    amount,
+    hidden_room_share: hiddenRoomShare,
+    payment_method: paymentMethod.trim() || null,
+    movement_date: movementDate ? formatDateOnly(movementDate) : null,
+    notes: notes.trim() || null,
+    via: paymentMethod.trim() || null,
+    date: movementDate ? formatDateOnly(movementDate) : null,
+    'M.A.I.': hiddenRoomShare,
+  };
+
+  const { error } = await supabase
+    .from('hr_transactions')
+    .update(payload)
+    .eq('id', tx.id);
+
+  if (error) {
+    console.error('[HR] event movement edit:', error);
+    showToast('No se pudo editar el movimiento.', 'error');
+    return;
+  }
+
+  state.data.financeEvents = null;
+  state.data.collabFinanceEvents = null;
+  showToast('Movimiento actualizado.', 'success');
+  navigate(state.activeSection);
 }
 
 function operationReceiptTitle(formType) {
@@ -3492,6 +3923,121 @@ async function handlePermissionRemove(permissionId) {
   navigate('erp-permissions');
 }
 
+function renderEventPermissionsEditor(user) {
+  const events = state.data.permissionEvents ?? [];
+  const assigned = new Map(
+    (state.data.eventUserPermissions ?? [])
+      .filter((permission) => String(permission.user_id) === String(user.user_id))
+      .map((permission) => [String(permission.event_id), permission])
+  );
+
+  const rows = events.length
+    ? events.map((event) => {
+      const permission = assigned.get(String(event.id)) ?? {};
+      const searchText = normalizeSearchText([
+        event.name,
+        event.event_key,
+        event.status,
+        event.event_date,
+      ].filter(Boolean).join(' '));
+
+      return `
+        <tr data-search-row data-search-text="${escapeAttr(searchText)}">
+          <td class="db-event-permissions__event">
+            <strong>${escapeHTML(event.name ?? event.event_key ?? 'Evento')}</strong>
+            <small>${escapeHTML(event.event_key ?? '')} ${event.event_date ? `· ${formatDateOnly(event.event_date)}` : ''}</small>
+          </td>
+          ${EVENT_PERMISSION_FLAGS.map(([flag, label]) => `
+            <td>
+              <label class="db-checkbox-label">
+                <input type="checkbox" name="${escapeAttr(`${event.id}:${flag}`)}" ${permission[flag] ? 'checked' : ''} />
+                <span>${escapeHTML(label)}</span>
+              </label>
+            </td>
+          `).join('')}
+        </tr>
+      `;
+    }).join('')
+    : '<tr class="db-table__empty-row"><td colspan="5" class="db-empty">Sin eventos disponibles.</td></tr>';
+
+  return `
+    <section class="db-event-permissions">
+      <h3>Permisos por Evento</h3>
+      <label class="db-field">
+        <span>Buscar eventos</span>
+        <input data-table-search data-table-target="js-event-permissions-body" data-table-count="js-event-permissions-count" placeholder="Buscar evento" />
+        <small id="js-event-permissions-count" class="db-field__hint">${events.length} eventos visibles</small>
+      </label>
+      <div class="db-table-wrap db-event-permissions__table-wrap">
+        <table class="db-table db-event-permissions__table" aria-label="Permisos por evento">
+          <thead>
+            <tr>
+              <th scope="col">Evento</th>
+              ${EVENT_PERMISSION_FLAGS.map(([, label]) => `<th scope="col">${escapeHTML(label)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody id="js-event-permissions-body">${rows}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+async function handleEventPermissionsSave(user, form) {
+  if (!requireAdminMutation()) return false;
+  if (!user?.user_id) {
+    showToast('El usuario no tiene User ID operativo.', 'error');
+    return false;
+  }
+
+  const events = state.data.permissionEvents ?? [];
+  const existing = new Map(
+    (state.data.eventUserPermissions ?? [])
+      .filter((permission) => String(permission.user_id) === String(user.user_id))
+      .map((permission) => [String(permission.event_id), permission])
+  );
+
+  for (const event of events) {
+    const flags = Object.fromEntries(
+      EVENT_PERMISSION_FLAGS.map(([flag]) => [
+        flag,
+        Boolean(form.querySelector(`input[name="${CSS.escape(`${event.id}:${flag}`)}"]`)?.checked),
+      ])
+    );
+    const hasAny = Object.values(flags).some(Boolean);
+    const current = existing.get(String(event.id));
+
+    if (hasAny) {
+      const { error } = await supabase
+        .from('event_user_permissions')
+        .upsert({
+          event_id: event.id,
+          user_id: user.user_id,
+          ...flags,
+        }, { onConflict: 'event_id,user_id' });
+
+      if (error) {
+        console.error('[HR] event permission upsert:', error);
+        showToast('No se pudieron guardar permisos por evento.', 'error');
+        return false;
+      }
+    } else if (current?.id) {
+      const { error } = await supabase
+        .from('event_user_permissions')
+        .delete()
+        .eq('id', current.id);
+
+      if (error) {
+        console.error('[HR] event permission delete:', error);
+        showToast('No se pudieron quitar permisos por evento.', 'error');
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 /**
  * Opens an inline modal to edit a user's profile + email as an admin.
  * Email changes are routed through the "admin-update-user" Edge Function.
@@ -3507,11 +4053,11 @@ function showAdminUserEditModal(userUuid) {
 
   const overlay = document.createElement('div');
   overlay.id = 'js-admin-user-edit-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;';
+  overlay.className = 'db-modal';
   overlay.innerHTML = `
-    <div style="background:var(--db-bg,#1a1a1a);border:1px solid var(--db-border,#333);border-radius:8px;padding:24px;min-width:340px;max-width:480px;width:90%;">
-      <h2 style="margin:0 0 16px;font-size:1.1rem;">Editar usuario</h2>
-      <form id="js-admin-user-edit-form" class="db-form">
+    <div class="db-modal__dialog db-modal__dialog--wide">
+      <h2 class="db-modal__title">Editar usuario</h2>
+      <form id="js-admin-user-edit-form" class="db-form db-modal__body">
         <input type="hidden" name="user_uuid" value="${escapeAttr(userUuid)}" />
         <label class="db-field"><span>Display name</span>
           <input name="display_name" value="${escapeAttr(user.display_name ?? '')}" />
@@ -3527,13 +4073,14 @@ function showAdminUserEditModal(userUuid) {
         </label>
         <label class="db-field"><span>Email (Auth)</span>
           <input type="email" name="email" value="${escapeAttr(user.email ?? '')}" required />
-          <small style="color:var(--db-muted,#888)">Cambiar el email requiere confirmación del usuario. Se enruta via Edge Function.</small>
+          <small class="db-field__hint">Cambiar el email requiere confirmación del usuario. Se enruta via Edge Function.</small>
         </label>
-        <div style="display:flex;gap:8px;margin-top:16px;">
+        ${renderEventPermissionsEditor(user)}
+        <div class="db-modal__actions">
           <button class="btn-primary" type="submit">Guardar</button>
           <button class="db-btn-secondary" type="button" id="js-admin-user-edit-cancel">Cancelar</button>
         </div>
-        <div id="js-admin-user-edit-status" style="margin-top:8px;min-height:20px;font-size:.85rem;"></div>
+        <div id="js-admin-user-edit-status" class="db-modal__status"></div>
       </form>
     </div>
   `;
@@ -3560,14 +4107,17 @@ function showAdminUserEditModal(userUuid) {
     submitBtn.disabled = true;
     if (statusEl) statusEl.textContent = 'Guardando...';
 
-    const ok = await handleAdminUserUpdate(
+    const profileOk = await handleAdminUserUpdate(
       user,
       newEmail,
       { display_name, username, whatsapp, avatar_url }
     );
+    const eventPermissionsOk = profileOk
+      ? await handleEventPermissionsSave(user, e.target)
+      : false;
 
     submitBtn.disabled = false;
-    if (ok) {
+    if (profileOk && eventPermissionsOk) {
       overlay.remove();
       navigate('erp-permissions');
     } else {
@@ -3962,17 +4512,17 @@ async function handleFinancePdfExport() {
 
     doc.autoTable({
       head: [isEventFinance
-        ? ['Concepto', 'Tipo', 'Monto', 'Fecha', 'Via', 'Notas', 'Cliente']
+        ? ['Concepto', 'Tipo', 'Monto', 'Hidden Room Share', 'Fecha', 'Metodo', 'Notas']
         : ['Concepto', 'Tipo', 'Monto', 'Fecha', 'Status', 'Cliente']],
       body: rows.map((tx) => isEventFinance
         ? [
           tx.concept ?? '-',
-          tx.type ?? '-',
-          money(eventFinanceAmount(tx)),
-          formatDateOnly(tx.date),
-          tx.via ?? '-',
+          movementTypeLabel(tx.movement_type) || tx.type || '-',
+          money(Number(tx.amount ?? 0)),
+          money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0)),
+          formatDateOnly(tx.movement_date ?? tx.date),
+          tx.payment_method ?? tx.via ?? '-',
           tx.notes ?? '-',
-          tx.username ?? tx.user_id ?? '-',
         ]
         : [
           tx.concept ?? '-',
@@ -4205,6 +4755,11 @@ function attachMainDelegation() {
 
     if (action === 'export-finance-pdf') {
       handleFinancePdfExport();
+    }
+
+    if (action === 'event-movement-edit') {
+      const btn = e.target.closest('[data-event-movement]');
+      if (btn?.dataset.eventMovement) handleEventMovementEdit(btn.dataset.eventMovement);
     }
 
     if (action === 'admin-table-delete') {

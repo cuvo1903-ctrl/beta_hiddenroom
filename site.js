@@ -1,5 +1,5 @@
 const SITE_STATUS = "Sitio en Construcción";
-const SITE_VERSION = "V. 0.3.5";
+const SITE_VERSION = "V. 0.3.6";
 
 function cleanIndexURL() {
   const { pathname, search, hash } = window.location;
