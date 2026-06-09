@@ -391,6 +391,16 @@ const TABLE_EDITOR_CONFIG = {
     lockedFields: ['id', 'user_id', 'roles', 'has_auth', 'old_id', 'temp_password'],
     editableFields: ['display_name', 'email', 'whatsapp', 'avatar_url', 'username'],
     hiddenColumns: ['id', 'temp_password'],
+    pdfColumns: ['user_id', 'display_name', 'email', 'whatsapp', 'username', 'roles', 'has_auth'],
+    pdfColumnLabels: {
+      user_id: 'User ID',
+      display_name: 'Nombre',
+      email: 'Email',
+      whatsapp: 'WhatsApp',
+      username: 'Username',
+      roles: 'Roles',
+      has_auth: 'Auth',
+    },
   },
   transactions: {
     label: 'Transacciones',
@@ -398,6 +408,14 @@ const TABLE_EDITOR_CONFIG = {
     select: 'id, user_id, type, concept, date, amount, via, username, id_trans, notes',
     lockedFields: ['id'],
     editableFields: ['user_id', 'type', 'concept', 'date', 'amount', 'via', 'username', 'id_trans', 'notes'],
+    hiddenColumns: ['id'],
+  },
+  hr_transactions: {
+    label: 'hr_transactions',
+    primaryKey: 'id',
+    select: 'id, event_id, event_key, movement_type, concept, amount, hidden_room_share, payment_method, movement_date, notes, user_id, username, created_by_user_id, type, via, date',
+    lockedFields: ['id', 'created_by_user_id'],
+    editableFields: ['event_id', 'event_key', 'movement_type', 'concept', 'amount', 'hidden_room_share', 'payment_method', 'movement_date', 'notes', 'user_id', 'username', 'type', 'via', 'date'],
     hiddenColumns: ['id'],
   },
   sessions: {
@@ -432,6 +450,25 @@ const TABLE_EDITOR_CONFIG = {
     lockedFields: ['id'],
     editableFields: ['user_id', 'concept'],
     hiddenColumns: ['id'],
+  },
+  membership_dashboard: {
+    label: 'Membresia',
+    primaryKey: null,
+    select: 'user_id, username, semana, fecha_de_sesion, estado, fecha_de_saldo, saldo, notas',
+    lockedFields: ['user_id', 'username', 'semana', 'fecha_de_sesion', 'estado', 'fecha_de_saldo', 'saldo', 'notas'],
+    editableFields: [],
+    hiddenColumns: [],
+    readOnly: true,
+    pdfColumnLabels: {
+      user_id: 'User ID',
+      username: 'Username',
+      semana: 'Semana',
+      fecha_de_sesion: 'Fecha de sesion',
+      estado: 'Estado',
+      fecha_de_saldo: 'Fecha de saldo',
+      saldo: 'Saldo',
+      notas: 'Notas',
+    },
   },
   events: {
     label: 'Eventos',
@@ -594,6 +631,14 @@ const userLabel = (userId) => {
 };
 
 const usernameLabel = (user) => user?.username ? `@${user.username}` : '@sin_username';
+
+function currentUserAuditFields() {
+  return {
+    created_by: state.user?.id ?? null,
+    created_by_user_id: state.user?.user_id ?? null,
+    created_by_username: state.user?.username ?? state.user?.display_name ?? state.user?.email ?? null,
+  };
+}
 
 async function ensureCurrentUserOperationalId(authUser, profile = null) {
   if (profile?.user_id) return profile;
@@ -1547,7 +1592,43 @@ async function renderClientContracts() {
   `;
 }
 
-function renderClientMembership() {
+async function renderClientMembership() {
+  const { data, error } = await supabase
+    .from('membership_dashboard')
+    .select('user_id, username, semana, fecha_de_sesion, estado, fecha_de_saldo, saldo, notas')
+    .eq('user_id', state.user.user_id)
+    .order('semana', { ascending: true });
+
+  if (error) {
+    console.error('[HR] renderClientMembership:', error);
+    return `
+      <section class="db-section" aria-labelledby="title-membership">
+        <header class="db-section__header">
+          <p class="section-label">Cliente</p>
+          <h1 class="db-section__title" id="title-membership">Membresía</h1>
+        </header>
+        <p class="db-empty db-empty--error">Error al cargar membresía. Intenta de nuevo.</p>
+      </section>
+    `;
+  }
+
+  const rows = data?.length
+    ? data.map((item) => `
+      <tr>
+        <td>${escapeHTML(item.semana ?? '-')}</td>
+        <td>${escapeHTML(formatDateOnly(item.fecha_de_sesion))}</td>
+        <td>${escapeHTML(item.estado ?? '-')}</td>
+        <td>${escapeHTML(formatDateOnly(item.fecha_de_saldo))}</td>
+        <td>${money(Number(item.saldo ?? 0))}</td>
+        <td>${escapeHTML(item.notas ?? '-')}</td>
+      </tr>
+    `).join('')
+    : `
+      <tr class="db-table__empty-row">
+        <td colspan="6" class="db-empty">Sin datos de membresía.</td>
+      </tr>
+    `;
+
   return `
     <section class="db-section" aria-labelledby="title-membership">
       <header class="db-section__header">
@@ -1558,17 +1639,15 @@ function renderClientMembership() {
         <table class="db-table" aria-label="Membresía">
           <thead>
             <tr>
-              <th scope="col">Membresía</th>
+              <th scope="col">Semana</th>
+              <th scope="col">Fecha de sesión</th>
               <th scope="col">Estado</th>
-              <th scope="col">Inicio</th>
-              <th scope="col">Renovacion</th>
+              <th scope="col">Fecha de saldo</th>
+              <th scope="col">Saldo</th>
+              <th scope="col">Notas</th>
             </tr>
           </thead>
-          <tbody>
-            <tr class="db-table__empty-row">
-              <td colspan="4" class="db-empty">Sin datos de membresía.</td>
-            </tr>
-          </tbody>
+          <tbody>${rows}</tbody>
         </table>
       </div>
     </section>
@@ -1777,6 +1856,10 @@ async function renderCollabFinance() {
     `);
   }
 
+  state.data.collabFinanceRows = data ?? [];
+  state.data.collabFinanceFilters = { ...filters, scope: 'events', eventId };
+  state.data.collabFinanceSelectedEvent = selectedEvent ?? null;
+
   return sectionShell('Colaborador', 'Financiero', 'title-collab-finance', `
     ${renderCollabFinanceEventFilter(events, eventId)}
     ${renderFinanceFilters(filters)}
@@ -1807,6 +1890,7 @@ function renderCollabFinanceEventFilter(events = [], selectedEventId = '') {
           ${events.map((event) => optionHTML(String(event.id ?? event.event_id), eventLabel(event), selectedEventId)).join('')}
         </select>
       </label>
+      <button class="db-btn-secondary" type="button" data-action="export-finance-pdf">Exportar PDF</button>
     </div>
   `;
 }
@@ -2735,6 +2819,7 @@ function renderEventFinanceTransactionsTable(transactions, options = {}) {
     ['hidden_room_share', 'Hidden Room Share'],
     ['movement_date', 'Fecha'],
     ['payment_method', 'Metodo'],
+    ['created_by_user_id', 'Creado por'],
     ['notes', 'Notas'],
   ];
   const rows = sortedTransactions.length
@@ -2746,11 +2831,12 @@ function renderEventFinanceTransactionsTable(transactions, options = {}) {
         <td>${money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0))}</td>
         <td>${escapeHTML(formatDateOnly(tx.movement_date ?? tx.date))}</td>
         <td>${escapeHTML(tx.payment_method ?? tx.via ?? '-')}</td>
+        <td>${escapeHTML(tx.created_by_user_id ?? '-')}</td>
         <td>${escapeHTML(tx.notes ?? '-')}</td>
         ${options.canEdit ? `<td><button class="db-btn-secondary" type="button" data-action="event-movement-edit" data-event-movement="${escapeAttr(encodeURIComponent(JSON.stringify(tx)))}">Editar</button></td>` : ''}
       </tr>
     `).join('')
-    : `<tr class="db-table__empty-row"><td colspan="${options.canEdit ? 7 : 6}" class="db-empty">Sin transacciones en el periodo.</td></tr>`;
+    : `<tr class="db-table__empty-row"><td colspan="${headers.length + (options.canEdit ? 1 : 0)}" class="db-empty">Sin transacciones en el periodo.</td></tr>`;
 
   return `
     <div class="db-table-wrap">
@@ -2943,7 +3029,7 @@ async function renderAdminTableEditor() {
         <thead>
           <tr>
             ${visibleColumns.map((field) => renderSortableHeader(tableId, field, field, activeSort)).join('')}
-            <th scope="col">Acciones</th>
+            ${config.readOnly ? '' : '<th scope="col">Acciones</th>'}
           </tr>
         </thead>
         <tbody id="js-admin-table-body">${rows}</tbody>
@@ -2983,6 +3069,7 @@ function renderAdminTableEditorRow(tableName, config, row, index) {
           </td>
         `;
       }).join('')}
+      ${config.readOnly ? '' : `
       <td>
         <form class="db-inline-form" id="admin-table-form-${index}" data-form="admin-table-update">
           <input type="hidden" name="table_name" value="${escapeAttr(tableName)}" />
@@ -2992,6 +3079,7 @@ function renderAdminTableEditorRow(tableName, config, row, index) {
         <button class="db-btn-danger" type="button" data-action="admin-table-delete" data-table-name="${escapeAttr(tableName)}" data-row-original="${escapeAttr(original)}">Eliminar</button>
         ${tableName === 'users' && row.temp_password ? `<button class="db-btn-secondary" type="button" data-action="share-login" data-user-row="${escapeAttr(original)}">Compartir</button>` : ''}
       </td>
+      `}
     </tr>
   `;
 }
@@ -3500,7 +3588,7 @@ async function handleEventMovementCreate(form, values = formValues(form)) {
     notes: values.notes ?? null,
     user_id: state.user?.user_id ?? null,
     username: state.user?.username ?? state.user?.display_name ?? state.user?.email ?? null,
-    created_by: state.user?.id ?? null,
+    ...currentUserAuditFields(),
     type: movement.legacyType,
     via: values.payment_method ?? null,
     date: movementDate,
@@ -4209,6 +4297,10 @@ async function handleAdminTableUpdate(form) {
     showToast('Tabla no permitida.', 'error');
     return;
   }
+  if (config.readOnly) {
+    showToast('Esta vista es solo lectura.', 'info');
+    return;
+  }
 
   let original;
   try {
@@ -4303,6 +4395,10 @@ async function handleAdminTableDelete(tableName, encodedRow) {
   const config = TABLE_EDITOR_CONFIG[tableName];
   if (!config) {
     showToast('Tabla no permitida.', 'error');
+    return;
+  }
+  if (config.readOnly) {
+    showToast('Esta vista es solo lectura.', 'info');
     return;
   }
 
@@ -4428,18 +4524,30 @@ async function handleAdminPdfExport(tableLabel = 'Tabla administrativa') {
     return;
   }
 
-  const headers = [...table.querySelectorAll('thead th')]
+  const tableName = state.data.adminTableName || 'users';
+  const config = TABLE_EDITOR_CONFIG[tableName] || {};
+  const configuredColumns = [...(config.lockedFields ?? []), ...(config.editableFields ?? [])]
+    .filter((field, index, arr) => arr.indexOf(field) === index);
+  const visibleColumns = configuredColumns.filter((field) => !(config.hiddenColumns ?? []).includes(field));
+  const visibleHeaders = [...table.querySelectorAll('thead th')]
     .map((th) => th.textContent.trim())
     .filter((text) => text && text.toLowerCase() !== 'acciones');
 
-  const rows = [...table.querySelectorAll('tbody tr')]
+  const visibleRows = [...table.querySelectorAll('tbody tr')]
     .filter((tr) => !tr.hidden && !tr.classList.contains('db-table__empty-row'))
     .map((tr) => [...tr.children]
-      .slice(0, headers.length)
+      .slice(0, visibleHeaders.length)
       .map((td) => {
         const input = td.querySelector('input, textarea, select');
         return input ? input.value : td.textContent.trim();
       }));
+
+  const pdfColumns = config.pdfColumns?.length
+    ? config.pdfColumns.filter((field) => visibleColumns.includes(field))
+    : visibleColumns;
+  const columnIndexes = pdfColumns.map((field) => visibleColumns.indexOf(field));
+  const headers = pdfColumns.map((field) => config.pdfColumnLabels?.[field] ?? field);
+  const rows = visibleRows.map((row) => columnIndexes.map((index) => row[index] ?? '-'));
 
   if (!rows.length) {
     showToast('No hay filas visibles para exportar.', 'info');
@@ -4462,7 +4570,7 @@ async function handleAdminPdfExport(tableLabel = 'Tabla administrativa') {
       head: [headers],
       body: rows,
       startY: 92,
-      styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+      styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
       headStyles: { fillColor: [32, 32, 32] },
       margin: { left: 40, right: 40 },
     });
@@ -4477,12 +4585,23 @@ async function handleAdminPdfExport(tableLabel = 'Tabla administrativa') {
 }
 
 async function handleFinancePdfExport() {
-  if (!requireAdminMutation()) return;
+  const isCollabFinance = state.activeSection === 'collab-finance';
+  if (!isCollabFinance && !requireAdminMutation()) return;
+  if (isCollabFinance && !hasRole('admin') && !hasPermission('events.access')) {
+    showToast('No tienes permiso para exportar finanzas de eventos.', 'error');
+    return;
+  }
 
-  const rows = state.data.erpFinanceRows ?? [];
-  const filters = state.data.erpFinanceFilters ?? getFinanceFilters();
+  const rows = isCollabFinance ? (state.data.collabFinanceRows ?? []) : (state.data.erpFinanceRows ?? []);
+  const filters = isCollabFinance
+    ? (state.data.collabFinanceFilters ?? { ...getEventFinanceFilters(), scope: 'events', eventId: state.data.collabFinanceEventId ?? '' })
+    : (state.data.erpFinanceFilters ?? getFinanceFilters());
+  const events = isCollabFinance ? (state.data.collabFinanceEvents ?? []) : (state.data.financeEvents ?? []);
+  const selectedEvent = isCollabFinance
+    ? state.data.collabFinanceSelectedEvent
+    : events.find((event) => String(event.id ?? event.event_id ?? event.event_key) === String(filters.eventId));
   const scopeLabel = filters.scope === 'events'
-    ? (((state.data.financeEvents ?? []).find((event) => event.event_key === filters.eventId)?.name ?? filters.eventId) || 'Todos los eventos')
+    ? (selectedEvent ? eventLabel(selectedEvent) : (filters.eventId || 'Todos los eventos'))
     : FINANCE_STUDIO_SOURCES.find((item) => item.value === filters.studio)?.label ?? filters.studio;
 
   if (!rows.length) {
@@ -4512,7 +4631,7 @@ async function handleFinancePdfExport() {
 
     doc.autoTable({
       head: [isEventFinance
-        ? ['Concepto', 'Tipo', 'Monto', 'Hidden Room Share', 'Fecha', 'Metodo', 'Notas']
+        ? ['Concepto', 'Tipo', 'Monto', 'Hidden Room Share', 'Fecha', 'Metodo', 'Creado por', 'Notas']
         : ['Concepto', 'Tipo', 'Monto', 'Fecha', 'Status', 'Cliente']],
       body: rows.map((tx) => isEventFinance
         ? [
@@ -4522,6 +4641,7 @@ async function handleFinancePdfExport() {
           money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0)),
           formatDateOnly(tx.movement_date ?? tx.date),
           tx.payment_method ?? tx.via ?? '-',
+          tx.created_by_user_id ?? '-',
           tx.notes ?? '-',
         ]
         : [
