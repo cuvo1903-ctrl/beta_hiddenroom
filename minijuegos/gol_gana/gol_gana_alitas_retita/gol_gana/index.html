@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>GOL GANA | Hidden Room x Tlalpan Wings House</title>
+  <meta name="description" content="Retita arcade de Hidden Room x Tlalpan Wings House." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="shell">
+    <section id="menu" class="panel menu-panel">
+      <p class="eyebrow">Hidden Room x Tlalpan Wings House</p>
+      <h1>GOL GANA</h1>
+      <p class="tagline">Retita de a alitas.</p>
+      <div class="menu-actions">
+        <button id="playBtn" class="primary-btn">Jugar</button>
+        <button id="howBtn" class="ghost-btn">Cómo jugar</button>
+      </div>
+      <div id="howTo" class="how hidden">
+        <p><strong>PC:</strong> WASD/flechas para moverte, Espacio para tirar, Shift para sprint.</p>
+        <p><strong>Móvil:</strong> joystick, botón ⚽ para tirar y ⚡ para sprint.</p>
+        <p>Mete goles, junta alitas y evita que Clara te ajolotifique.</p>
+      </div>
+    </section>
+
+    <section id="gamePanel" class="game-panel hidden">
+      <div class="hud">
+        <div class="scoreboard"><span>Marcador</span><strong id="scoreboardUI">0 - 0</strong></div>
+        <div class="timebox"><span>Tiempo</span><strong id="timeUI">50</strong></div>
+        <div><span>Alitas</span><strong id="chicksUI">0</strong></div>
+        <div><span>Puntos</span><strong id="scoreUI">0</strong></div>
+      </div>
+      <canvas id="game" width="960" height="540" aria-label="Cancha de GOL GANA"></canvas>
+      <div id="message" class="message hidden"></div>
+
+      <div class="touch-controls" aria-hidden="true">
+        <div id="stickBase" class="stick-base"><div id="stick" class="stick"></div></div>
+        <div class="touch-buttons">
+          <button id="sprintTouch" class="round-btn">⚡</button>
+          <button id="shootTouch" class="round-btn shoot">⚽</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="gameOver" class="panel over-panel hidden">
+      <p class="eyebrow">Partido terminado</p>
+      <h2>Resultado</h2>
+      <p class="final-score"><span id="finalGoals">0 - 0</span></p>
+      <p class="final-detail"><span id="finalScore">0</span> puntos · <span id="finalWings">0</span> alitas</p>
+      <p class="record">Récord local: <strong id="recordUI">0</strong></p>
+      <button id="retryBtn" class="primary-btn">Reintentar</button>
+    </section>
+  </main>
+  <script src="./game.js" defer></script>
+</body>
+</html>
