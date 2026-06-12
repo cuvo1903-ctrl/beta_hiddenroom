@@ -868,3 +868,7 @@
   $('sprintTouch').addEventListener('touchend', e => { state.touchSprint = false; e.preventDefault(); }, {passive:false});
   $('sprintTouch').addEventListener('touchcancel', e => { state.touchSprint = false; e.preventDefault(); }, {passive:false});
 })();
+
+
+// dynamicJoystickEnabled
+window.dynamicJoystickEnabled=true;
