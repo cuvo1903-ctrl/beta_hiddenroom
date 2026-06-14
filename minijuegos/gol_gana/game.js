@@ -154,13 +154,18 @@ function getGolGanaJoystickVector() {
 
   const SOUNDS = {
     awb: '../../assets/sounds/awb.mp3',
+    crying: '../../assets/sounds/crying.mp3',
+    gameOver: '../../assets/sounds/game_over.mp3',
     intro: '../../assets/sounds/intro gol gana.mp3',
     kick: '../../assets/sounds/kick.mp3',
+    point: '../../assets/sounds/point.mp3',
+    touch: '../../assets/sounds/touch_game.mp3',
     whistle: '../../assets/sounds/silbato.mp3',
+    yay: '../../assets/sounds/yay.mp3',
   };
 
   const SoundSystem = (() => {
-    const POOL_SIZE = 3;
+    const POOL_SIZE = 5;
     const pools = {};
     const cursors = {};
     let unlocked = false;
@@ -804,6 +809,7 @@ function getGolGanaJoystickVector() {
     ball.y = from.y + (dy / m) * 24;
     ball.vx = (dx / m) * speed;
     ball.vy = (dy / m) * speed;
+    SoundSystem.play('kick', 0.58);
     return true;
   }
 
@@ -841,6 +847,7 @@ function getGolGanaJoystickVector() {
   }
 
   function rivalShoot(r) {
+    SoundSystem.play('kick', 0.62);
     const targetY = rand(goalTop() + 18, goalBottom() - 18);
     const dx = fieldLeft() - 18 - r.x;
     const dy = targetY - r.y;
@@ -899,6 +906,7 @@ function getGolGanaJoystickVector() {
       const p = pickups[i];
       if (dist(player, p) < player.r + p.r) {
         pickups.splice(i, 1);
+        SoundSystem.play('point', 0.72);
         if (p.type === 'chick') { state.chicks++; state.comboTimer = 3; state.score += state.multiplierTimer > 0 ? 70 : 35; flash('+1 ALITA', .35); }
         if (p.type === 'gold') { state.chicks += 3; state.speedTimer = 4; state.score += 90; flash('ALITA DORADA', .55); }
         if (p.type === 'salsa') { state.multiplierTimer = 4.5; flash('SALSA x2', .55); }
@@ -920,6 +928,7 @@ function getGolGanaJoystickVector() {
     clara.x += clara.vx * dt; clara.y += clara.vy * dt;
     if (state.claraTimer <= 0 || clara.x < -70 || clara.x > W + 70) clara.active = false;
     if (dist(player, clara) < player.r + clara.r && state.invincibleTimer <= 0) {
+      SoundSystem.play('crying', 0.78);
       state.ajoloteTimer = 6; clara.active = false; player.hasBall = false; ball.owner = null; ball.ownerIndex = -1;
       ball.vx = -player.facing.x * 180; ball.vy = -player.facing.y * 180;
       flash('HAS SIDO AJOLOTIZADO', 2, 'purple');
@@ -938,12 +947,12 @@ function getGolGanaJoystickVector() {
   }
 
   function endGame() {
-    SoundSystem.play('whistle', 0.86);
     state.running = false;
     show(ui.gamePanel, false); show(ui.gameOver, true);
     let final = Math.floor(state.score);
     const won = state.goals > state.rivalGoals;
     const tied = state.goals === state.rivalGoals;
+    SoundSystem.play(won ? 'yay' : 'gameOver', won ? 0.78 : 0.82);
     if (!won) {
       final = tied ? Math.floor(final * 0.75) : Math.floor(final * 0.5);
     }
@@ -1723,20 +1732,28 @@ function getGolGanaJoystickVector() {
     SoundSystem.unlock();
   }
 
+  function playUiTouch() {
+    unlockSounds();
+    SoundSystem.play('touch', 0.62);
+  }
+
   document.addEventListener('pointerdown', unlockSounds, { once: true, passive: true });
   document.addEventListener('touchstart', unlockSounds, { once: true, passive: true });
   document.addEventListener('keydown', unlockSounds, { once: true });
 
-  $('playBtn').addEventListener('click', () => { unlockSounds(); newGame(); });
-  $('retryBtn').addEventListener('click', () => { unlockSounds(); newGame(); });
-  ui.saveScoreBtn?.addEventListener('click', goToLoginForScore);
-  $('howBtn').addEventListener('click', () => { unlockSounds(); ui.howTo.classList.toggle('hidden'); });
+  $('playBtn').addEventListener('click', () => { playUiTouch(); newGame(); });
+  $('retryBtn').addEventListener('click', () => { playUiTouch(); newGame(); });
+  ui.saveScoreBtn?.addEventListener('click', () => { playUiTouch(); goToLoginForScore(); });
+  $('howBtn').addEventListener('click', () => { playUiTouch(); ui.howTo.classList.toggle('hidden'); });
+  document.querySelectorAll('a.ghost-btn').forEach((link) => {
+    link.addEventListener('click', playUiTouch);
+  });
 
   // Controles tactiles: movimiento por joystick dinamico, botones fijos para tiro/sprint.
-  $('shootTouch').addEventListener('touchstart', e => { unlockSounds(); state.touchShoot = true; e.preventDefault(); }, {passive:false});
+  $('shootTouch').addEventListener('touchstart', e => { playUiTouch(); state.touchShoot = true; e.preventDefault(); }, {passive:false});
   $('shootTouch').addEventListener('touchend', e => { state.touchShoot = false; e.preventDefault(); }, {passive:false});
   $('shootTouch').addEventListener('touchcancel', e => { state.touchShoot = false; e.preventDefault(); }, {passive:false});
-  $('sprintTouch').addEventListener('touchstart', e => { unlockSounds(); state.touchSprint = true; e.preventDefault(); }, {passive:false});
+  $('sprintTouch').addEventListener('touchstart', e => { playUiTouch(); state.touchSprint = true; e.preventDefault(); }, {passive:false});
   $('sprintTouch').addEventListener('touchend', e => { state.touchSprint = false; e.preventDefault(); }, {passive:false});
   $('sprintTouch').addEventListener('touchcancel', e => { state.touchSprint = false; e.preventDefault(); }, {passive:false});
 

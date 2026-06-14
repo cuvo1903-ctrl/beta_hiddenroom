@@ -32,6 +32,7 @@ const supabase = createClient(
 
 const PROFILE_UPDATE_WHATSAPP = '5210000000000';
 const SHARE_LOGIN_WHATSAPP_FALLBACK = '5210000000000';
+const MEMBERSHIP_SUPPORT_WHATSAPP = '5215542881737';
 const LOCAL_SCORE_SYNC_KEYS = ['dem00nz_best', 'gol_gana_record'];
 const NOTIFICATIONS_ENABLED = false;
 const ACTIVE_SECTION_STORAGE_KEY = 'hr_dashboard_active_section';
@@ -1870,6 +1871,7 @@ async function renderClientMembership() {
           <tbody>${rows}</tbody>
         </table>
       </div>
+      ${renderMembershipSyncFooter()}
     </section>
   `;
 }
@@ -3810,6 +3812,7 @@ async function renderAdminTableEditor() {
         <tbody id="js-admin-table-body">${rows}</tbody>
       </table>
     </div>
+    ${isMembershipDashboard ? renderMembershipSyncFooter() : ''}
     `}
   `);
 }
@@ -4432,6 +4435,16 @@ function renderMembershipSummary(rows = []) {
           <strong>${escapeHTML(item.value)}</strong>
         </div>
       `).join('')}
+    </div>
+  `;
+}
+
+function renderMembershipSyncFooter() {
+  const message = 'Hola, quiero reportar o aclarar información de mi dashboard de membresía en Mysauth OS.';
+  return `
+    <div class="db-membership-sync">
+      <p>Sincronizado desde Mysauth OS. ¿Crees que hay un error? Contáctanos para reportarlo, solicitar aclaraciones o actualización de datos.</p>
+      <a class="db-btn-secondary db-membership-sync__button" href="${escapeAttr(buildWhatsAppLink(MEMBERSHIP_SUPPORT_WHATSAPP, message))}" target="_blank" rel="noopener noreferrer">Mensaje por WhatsApp</a>
     </div>
   `;
 }

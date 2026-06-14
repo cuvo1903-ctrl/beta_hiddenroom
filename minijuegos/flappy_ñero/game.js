@@ -125,8 +125,13 @@ const SoundSystem = (() => {
   const _pools   = {};   // key → Audio[]
   const _cursors = {};   // key → current pool index (round-robin)
   let _unlocked  = false;
+  let _introRequested = false;
+  let _introPlayed = false;
 
-  function _buildPool(key, src) {
+  function _buildPool(key) {
+    if (_pools[key]) return;
+    const src = SOUNDS[key];
+    if (!src) return;
     _pools[key]   = Array.from({ length: POOL_SIZE }, () => {
       const a = new Audio(src);
       a.preload = 'auto';
@@ -136,23 +141,27 @@ const SoundSystem = (() => {
   }
 
   return {
+    preload() {
+      Object.keys(SOUNDS).forEach(_buildPool);
+    },
+
     // iOS Safari requires a user gesture before playing audio.
     // Unlock on first touch/click by building the Audio pools.
     unlock() {
-      if (_unlocked) return;
-      _unlocked = true;
-      for (const [key, src] of Object.entries(SOUNDS)) {
-        _buildPool(key, src);
+      if (!_unlocked) {
+        _unlocked = true;
+        this.preload();
+      }
+      if (_introRequested && !_introPlayed) {
+        this.play('intro', 0.72);
       }
     },
 
     play(key, volume = 1) {
       if (!_pools[key]) {
-        // Not unlocked yet; build a single-node pool lazily
-        const src = SOUNDS[key];
-        if (!src) return;
-        _buildPool(key, src);
+        _buildPool(key);
       }
+      if (!_pools[key]) return false;
       try {
         const pool  = _pools[key];
         const idx   = _cursors[key];
@@ -161,8 +170,25 @@ const SoundSystem = (() => {
 
         audio.volume      = volume;
         audio.currentTime = 0;
-        audio.play().catch(() => {}); // silently ignore autoplay block
-      } catch(e) {}
+        const playback = audio.play();
+        if (key === 'intro' && playback && typeof playback.then === 'function') {
+          playback
+            .then(() => { _introPlayed = true; })
+            .catch(() => { if (_introRequested) _introPlayed = false; });
+        } else if (playback && typeof playback.catch === 'function') {
+          playback.catch(() => {});
+        } else if (key === 'intro') {
+          _introPlayed = true;
+        }
+        return true;
+      } catch(e) {
+        return false;
+      }
+    },
+
+    requestIntro() {
+      _introRequested = true;
+      if (!_introPlayed) this.play('intro', 0.72);
     },
 
     stop(key) {
@@ -1368,41 +1394,40 @@ const Input = {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
+        SoundSystem.unlock();
         this.action();
       }
     });
 
     // iOS Safari audio unlock — run once on any user gesture
-    let introPlayed = false;
-    const playIntroOnce = () => {
-      if (introPlayed) return;
-      introPlayed = true;
+    const unlockSounds = () => {
       SoundSystem.unlock();
-      SoundSystem.play('intro');
     };
+    document.addEventListener('pointerdown', unlockSounds, { once: true, passive: true });
+    document.addEventListener('touchstart', unlockSounds, { once: true, passive: true });
 
     // Canvas touch — prevent default to stop scroll/zoom on mobile
     canvas.style.touchAction = 'none';
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      playIntroOnce();
+      unlockSounds();
       this.action();
     }, { passive: false });
 
     // Wrapper touch — passive, just for audio unlock
-    document.getElementById('wrapper').addEventListener('touchstart', playIntroOnce, { passive: true });
+    document.getElementById('wrapper').addEventListener('touchstart', unlockSounds, { passive: true });
 
     // Buttons — touchend fires once on mobile; click covers desktop
     const startBtn   = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
     const saveScoreBtn = document.getElementById('saveScoreBtn');
 
-    const btnTouch = (e) => { e.preventDefault(); playIntroOnce(); startGame(); };
+    const btnTouch = (e) => { e.preventDefault(); unlockSounds(); startGame(); };
     startBtn.addEventListener('touchend',   btnTouch, { passive: false });
     restartBtn.addEventListener('touchend', btnTouch, { passive: false });
-    startBtn.addEventListener('click',   () => { SoundSystem.unlock(); startGame(); });
-    restartBtn.addEventListener('click', () => { SoundSystem.unlock(); startGame(); });
+    startBtn.addEventListener('click',   () => { unlockSounds(); startGame(); });
+    restartBtn.addEventListener('click', () => { unlockSounds(); startGame(); });
     saveScoreBtn?.addEventListener('click', goToLoginForScore);
   },
 
@@ -1424,9 +1449,9 @@ syncBestWithAccount().catch((error) => {
   console.info('[HR game] score sync skipped:', error);
 });
 
-// Desktop: attempt autoplay immediately.
-// iOS: will silently fail; intro plays on first user gesture (Input.init).
-SoundSystem.play('intro');
+// Desktop: attempt autoplay immediately. iOS/Safari retries on first gesture.
+SoundSystem.preload();
+SoundSystem.requestIntro();
 
 Screens.showStart();
 staticLoop(); // begins the idle background animation

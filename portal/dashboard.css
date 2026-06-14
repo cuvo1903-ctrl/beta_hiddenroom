@@ -612,6 +612,32 @@
   font-weight: 400;
 }
 
+.db-membership-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  border: var(--border-subtle);
+  background: var(--surface);
+  padding: var(--space-md);
+}
+
+.db-membership-sync p {
+  flex: 1 1 280px;
+  margin: 0;
+  color: var(--white-dim);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.db-membership-sync__button {
+  flex: 0 0 auto;
+  text-align: center;
+  text-decoration: none;
+}
+
 .db-auth-audit-block {
   margin-top: var(--space-xl);
 }
