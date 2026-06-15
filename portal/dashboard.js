@@ -518,6 +518,15 @@ const TABLE_EDITOR_CONFIG = {
     editableFields: ['user_id', 'username', 'status', 'start_date', 'end_date', 'weekly_price', 'sessions_per_week', 'notes'],
     hiddenColumns: ['id'],
   },
+  membership_material_deliveries: {
+    label: 'Entregas material',
+    primaryKey: 'id',
+    select: 'id, membership_id, user_id, cycle_number, delivered_at, notes, created_at',
+    defaultSort: { field: 'delivered_at', direction: 'desc' },
+    lockedFields: ['id', 'created_at'],
+    editableFields: ['membership_id', 'user_id', 'cycle_number', 'delivered_at', 'notes'],
+    hiddenColumns: ['id'],
+  },
   events: {
     label: 'Eventos',
     primaryKey: 'id',
@@ -566,11 +575,12 @@ async function fetchAllTableEditorRows(tableName, select, defaultSort = null) {
 }
 
 async function fetchComputedMembershipDashboardRows() {
-  const [usersResult, membershipsResult, sessionsResult, transactionsResult] = await Promise.all([
+  const [usersResult, membershipsResult, sessionsResult, transactionsResult, materialDeliveriesResult] = await Promise.all([
     fetchAllTableEditorRows('users', 'user_id, display_name, email, username', { field: 'display_name', direction: 'asc' }),
     fetchAllTableEditorRows('memberships', 'id, user_id, username, status, start_date, end_date, weekly_price, sessions_per_week, notes', { field: 'start_date', direction: 'asc' }),
     fetchAllTableEditorRows('sessions', '*', { field: 'session_date', direction: 'asc' }),
     fetchAllTableEditorRows('transactions', '*', { field: 'date', direction: 'asc' }),
+    fetchMembershipMaterialDeliveries(),
   ]);
 
   const usersByUserId = new Map((usersResult ?? [])
@@ -579,7 +589,7 @@ async function fetchComputedMembershipDashboardRows() {
   state.data.membershipDashboardUsers = usersResult ?? [];
   state.data.users = uniqueUsers(usersResult ?? []);
 
-  return buildMembershipRows(membershipsResult, sessionsResult, transactionsResult)
+  return buildMembershipRows(membershipsResult, sessionsResult, transactionsResult, materialDeliveriesResult)
     .map((row) => {
       const user = usersByUserId.get(String(row.user_id ?? ''));
       return {
@@ -589,6 +599,24 @@ async function fetchComputedMembershipDashboardRows() {
         username: row.username ?? user?.username ?? null,
       };
     });
+}
+
+async function fetchMembershipMaterialDeliveries(userId = null) {
+  try {
+    let query = supabase
+      .from('membership_material_deliveries')
+      .select('id, membership_id, user_id, cycle_number, delivered_at, notes, created_at')
+      .order('delivered_at', { ascending: true });
+
+    if (userId) query = query.eq('user_id', userId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ?? [];
+  } catch (error) {
+    console.info('[HR] membership material deliveries unavailable:', error?.message ?? error);
+    return [];
+  }
 }
 
 function sortTableEditorRows(rows, field, direction = 'asc') {
@@ -1647,7 +1675,7 @@ async function renderClientSessions() {
     rows = data.map((s) => `
       <tr>
         <td>${escapeHTML(s.concept ?? '-')}</td>
-        <td>${s.session_date ? new Date(s.session_date).toLocaleDateString('es-MX') : '-'}</td>
+        <td>${s.session_date ? formatDisplayDateOnly(s.session_date) : '-'}</td>
         <td>${escapeHTML(s.status ?? '-')}</td>
         <td>${escapeHTML(s.cost != null ? `$${s.cost}` : '-')}</td>
         <td>${escapeHTML(s.notes ?? '-')}</td>
@@ -1717,7 +1745,7 @@ async function renderClientTransactions() {
         <td>${escapeHTML(tx.concept ?? '-')}</td>
         <td>${escapeHTML(tx.type ?? '-')}</td>
         <td>$${escapeHTML(String(tx.amount ?? 0))}</td>
-        <td>${tx.date ? new Date(tx.date).toLocaleDateString('es-MX') : '-'}</td>
+        <td>${tx.date ? formatDisplayDateOnly(tx.date) : '-'}</td>
         <td>${escapeHTML(tx.via ?? '-')}</td>
       </tr>
     `).join('');
@@ -1801,7 +1829,7 @@ async function renderClientContracts() {
 
 async function renderClientMembership() {
   const userId = state.user?.user_id;
-  const [membershipsResult, sessionsResult, transactionsResult] = await Promise.all([
+  const [membershipsResult, sessionsResult, transactionsResult, materialDeliveriesResult] = await Promise.all([
     supabase
       .from('memberships')
       .select('id, user_id, username, status, start_date, end_date, weekly_price, sessions_per_week, notes')
@@ -1817,6 +1845,7 @@ async function renderClientMembership() {
       .select('*')
       .eq('user_id', userId)
       .order('date', { ascending: true }),
+    fetchMembershipMaterialDeliveries(userId),
   ]);
 
   if (membershipsResult.error || sessionsResult.error || transactionsResult.error) {
@@ -1835,7 +1864,8 @@ async function renderClientMembership() {
   const membershipRows = buildMembershipRows(
     membershipsResult.data ?? [],
     sessionsResult.data ?? [],
-    transactionsResult.data ?? []
+    transactionsResult.data ?? [],
+    materialDeliveriesResult ?? []
   );
   const visibleMembershipRows = sortRowsByColumn(membershipRows, 'fecha_esperada', 'desc');
   const membershipNotices = renderMembershipNotices(membershipRows);
@@ -2665,13 +2695,16 @@ function renderEventParticipantForm(events = []) {
 
 async function fetchMembershipOptionsForOps() {
   try {
-    return await fetchAllTableEditorRows(
+    const memberships = await fetchAllTableEditorRows(
       'memberships',
       'id, user_id, username, status, start_date, end_date, weekly_price, sessions_per_week, notes',
       { field: 'start_date', direction: 'desc' }
     );
+    state.data.membershipOpsOptions = memberships;
+    return memberships;
   } catch (error) {
     console.info('[HR] memberships options unavailable:', error?.message ?? error);
+    state.data.membershipOpsOptions = [];
     return [];
   }
 }
@@ -2679,7 +2712,7 @@ async function fetchMembershipOptionsForOps() {
 function membershipOptionLabel(membership) {
   const user = (state.data.users ?? []).find((item) => String(item.user_id) === String(membership.user_id));
   const label = user ? userLabel(user.user_id) : (membership.username || membership.user_id || 'Usuario');
-  const dates = `${formatDateOnly(membership.start_date)}${membership.end_date ? ` a ${formatDateOnly(membership.end_date)}` : ''}`;
+  const dates = `${formatDisplayDateOnly(membership.start_date)}${membership.end_date ? ` a ${formatDisplayDateOnly(membership.end_date)}` : ''}`;
   return `${label} · ${String(membership.status ?? 'active').toUpperCase()} · ${dates}`;
 }
 
@@ -2706,6 +2739,26 @@ function renderMembershipOpsForm(memberships = []) {
             <label class="db-field"><span>Status</span><select name="status">${['active', 'paused', 'cancelled', 'expired'].map((status) => optionHTML(status, status, 'active')).join('')}</select></label>
             <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
             <button class="btn-primary" type="submit">Crear membresía</button>
+          </form>
+      </section>
+      <section class="db-membership-ops__block">
+        <h2 class="db-membership-ops__title">Entrega de material</h2>
+          <form class="db-form" data-form="membership-delivery">
+            <label class="db-field">
+              <span>Membresía</span>
+              <select name="membership_id">
+                <option value="">Sin public.memberships / legacy</option>
+                ${memberships.map((membership) => optionHTML(membership.id, membershipOptionLabel(membership), '')).join('')}
+              </select>
+            </label>
+            ${renderErpUserPicker('user_id', 'Usuario')}
+            ${renderUserAutofillFields()}
+            <div class="db-form__row">
+              <label class="db-field"><span>Ciclo</span><input name="cycle_number" type="number" step="1" min="1" value="1" required /></label>
+              <label class="db-field"><span>Fecha de entrega</span><input name="delivered_at" type="date" value="${escapeAttr(today)}" required /></label>
+            </div>
+            <label class="db-field"><span>Notas de entrega</span><textarea name="notes" rows="3"></textarea></label>
+            <button class="btn-primary" type="submit">Registrar entrega</button>
           </form>
       </section>
       <section class="db-membership-ops__block">
@@ -3108,7 +3161,7 @@ function renderEventInfo(event) {
     <div class="db-grid db-grid--3col">
       ${renderStatCard('Evento', event.name ?? event.event_key ?? '-')}
       ${renderStatCard('Clave', event.event_key ?? '-')}
-      ${renderStatCard('Fecha / status', `${formatDateOnly(event.event_date)} · ${event.status ?? '-'}`)}
+      ${renderStatCard('Fecha / status', `${formatDisplayDateOnly(event.event_date)} · ${event.status ?? '-'}`)}
     </div>
   `;
 }
@@ -3253,7 +3306,7 @@ function renderTransactionsTable(transactions) {
         <td>${escapeHTML(tx.concept ?? '-')}</td>
         <td>${escapeHTML(tx.type ?? '-')}</td>
         <td>${money(Number(tx.amount ?? 0))}</td>
-        <td>${escapeHTML(formatDateOnly(tx.date))}</td>
+        <td>${escapeHTML(formatDisplayDateOnly(tx.date))}</td>
         <td>${escapeHTML(tx.status ?? '-')}</td>
         <td>${escapeHTML(tx.username ?? tx.user_id ?? '-')}</td>
       </tr>
@@ -3299,7 +3352,7 @@ function renderEventFinanceTransactionsTable(transactions, options = {}) {
         <td>${escapeHTML(participantName(tx.from_user_id))}</td>
         <td>${escapeHTML(participantName(tx.to_user_id))}</td>
         <td>${escapeHTML(participantName(tx.owner_user_id))}</td>
-        <td>${escapeHTML(formatDateOnly(tx.movement_date ?? tx.date))}</td>
+        <td>${escapeHTML(formatDisplayDateOnly(tx.movement_date ?? tx.date))}</td>
         <td>${escapeHTML(tx.payment_method ?? tx.via ?? '-')}</td>
         <td>${escapeHTML(tx.created_by_user_id ?? '-')}</td>
         <td>${escapeHTML(tx.notes ?? '-')}</td>
@@ -3765,7 +3818,7 @@ async function renderAdminTableEditor() {
     })).join('')
     : `<tr class="db-table__empty-row"><td colspan="99" class="db-empty">${suspiciousAdminEmpty ? 'No se pudieron validar tus permisos. Actualiza sesión.' : 'Sin filas disponibles.'}</td></tr>`;
   const membershipDashboardTable = isMembershipDashboard
-    ? renderMembershipDashboardTable(visibleData)
+    ? renderMembershipDashboardTable(visibleData, { canEditMaterialDelivery: true })
     : '';
 
   return sectionShell('ERP', 'BB.DD', 'title-admin-table-editor', `
@@ -3777,7 +3830,7 @@ async function renderAdminTableEditor() {
         </select>
       </label>
       ${searchControl}
-      ${config.readOnly ? '' : '<button class="db-btn-secondary" type="button" data-action="admin-table-save-all">GUARDAR</button>'}
+      ${config.readOnly && !isMembershipDashboard ? '' : '<button class="db-btn-secondary" type="button" data-action="admin-table-save-all">GUARDAR</button>'}
       ${isMembershipDashboard ? '' : `<button class="db-btn-secondary" type="button" data-action="export-admin-pdf" data-table-label="${escapeAttr(config.label)}">Exportar PDF</button>`}
     </div>
     ${tableName === 'users' ? '<p class="db-empty">El campo email se guarda a través de Auth (Edge Function). El cambio se aplica al confirmar el correo.</p>' : ''}
@@ -3886,8 +3939,8 @@ function renderAdminTableEditorRow(tableName, config, row, index, options = {}) 
 function adminTableCellValue(tableName, field, row) {
   if (tableName === 'membership_dashboard') {
     if (field === 'saldo') return formatMembershipRowBalance(row);
-    if (field === 'fecha_esperada' || field === 'fecha_de_sesion' || field === 'fecha_de_saldo') return formatDateOnly(row[field]);
-    if (field === 'sesiones_usadas') return row.sesiones_usadas || '-';
+    if (field === 'fecha_esperada' || field === 'fecha_de_sesion' || field === 'fecha_de_saldo') return formatDisplayDateOnly(row[field]);
+    if (field === 'sesiones_usadas') return formatMembershipSessionDates(row) || '-';
     if (field === 'periodo') return row.periodo || '-';
   }
 
@@ -3896,6 +3949,7 @@ function adminTableCellValue(tableName, field, row) {
 
 function membershipRowTone(row) {
   const saldo = Number(row?.saldo ?? 0);
+  if (row?.saldo_tipo === 'pendiente') return 'neutral';
   if (saldo < 0 || (row?.estado === 'ATRASADO' && !row?.fecha_de_saldo)) return 'debt';
   if (saldo > 0) return 'credit';
   return 'neutral';
@@ -3915,6 +3969,7 @@ function membershipFieldTone(field, row) {
   }
   if (field === 'saldo') {
     const saldo = Number(row?.saldo ?? 0);
+    if (row?.saldo_tipo === 'pendiente') return 'warning';
     if (saldo < 0) return 'danger';
     if (saldo > 0) return 'success';
   }
@@ -3926,12 +3981,13 @@ function membershipCellClass(field, row) {
   return tone === 'neutral' ? '' : ` db-membership-cell--${tone}`;
 }
 
-function renderMembershipDashboardTable(rows = []) {
+function renderMembershipDashboardTable(rows = [], options = {}) {
+  const deliveryByWeek = membershipDeliveryByWeek(rows);
   const body = rows.length
-    ? rows.map(renderMembershipDashboardRow).join('')
+    ? rows.map((row) => renderMembershipDashboardRow(row, deliveryByWeek.get(Number(row.semana ?? 0)), options)).join('')
     : `
       <tr class="db-table__empty-row">
-        <td colspan="6" class="db-empty">Sin datos de membresía.</td>
+        <td colspan="8" class="db-empty">Sin datos de membresía.</td>
       </tr>
     `;
 
@@ -3941,10 +3997,12 @@ function renderMembershipDashboardTable(rows = []) {
         <thead>
           <tr>
             <th scope="col">Semana</th>
-            <th scope="col">Periodo</th>
+            <th scope="col">Fecha de sesión</th>
             <th scope="col">Estado</th>
             <th scope="col">Saldo</th>
             <th scope="col">Fecha de saldo</th>
+            <th scope="col">Entrega programada</th>
+            <th scope="col">Fecha de entrega</th>
             <th scope="col">Notas</th>
           </tr>
         </thead>
@@ -3954,24 +4012,85 @@ function renderMembershipDashboardTable(rows = []) {
   `;
 }
 
-function renderMembershipDashboardRow(row) {
-  const sessionText = row.sesiones_usadas
-    ? `Sesiones: ${row.sesiones_usadas}`
+function formatMembershipSessionDates(row) {
+  if (Array.isArray(row?.sesiones_usadas_lista) && row.sesiones_usadas_lista.length) {
+    return formatDisplayDateList(row.sesiones_usadas_lista);
+  }
+
+  return formatDisplayDateList(
+    String(row?.sesiones_usadas ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+}
+
+function renderMembershipDashboardRow(row, delivery = null, options = {}) {
+  const sessionDates = formatMembershipSessionDates(row);
+  const sessionText = sessionDates
+    ? `Sesiones: ${sessionDates}`
     : 'Sin sesión registrada';
-  const notes = [sessionText, row.notas && row.notas !== '-' ? row.notas : '']
+  const deliveryNote = delivery?.status ? `Entrega: ${delivery.status}` : '';
+  const baseNotes = membershipEditableDeliveryNotes(row, delivery, { fallback: row.notas });
+  const notes = delivery?.deliveryNotes !== null && delivery?.deliveryNotes !== undefined
+    ? baseNotes
+    : [sessionText, deliveryNote, baseNotes && baseNotes !== '-' ? baseNotes : '']
     .filter(Boolean)
     .join(' · ');
+  const deliveryFormId = membershipDeliveryFormId(row);
+  const cycleNumber = Math.floor((Number(row.semana ?? 1) - 1) / 4) + 1;
 
   return `
     <tr class="db-membership-row db-membership-row--${escapeAttr(membershipRowTone(row))}">
       <td>${escapeHTML(String(row.semana ?? '-'))}</td>
-      <td>${escapeHTML(row.periodo ?? '-')}</td>
+      <td>${escapeHTML(sessionDates || 'Sin sesión registrada')}</td>
       <td class="${escapeAttr(membershipCellClass('estado', row).trim())}">${escapeHTML(row.estado ?? '-')}</td>
       <td class="${escapeAttr(membershipCellClass('saldo', row).trim())}">${formatMembershipRowBalance(row)}</td>
-      <td>${escapeHTML(formatDateOnly(row.fecha_de_saldo))}</td>
-      <td>${escapeHTML(notes || '-')}</td>
+      <td>${escapeHTML(formatDisplayDateOnly(row.fecha_de_saldo))}</td>
+      <td>${escapeHTML(formatDisplayDateOnly(delivery?.estimatedDelivery))}</td>
+      <td>${options.canEditMaterialDelivery ? renderMembershipDeliveryDateInput(row, delivery, deliveryFormId, cycleNumber, notes) : escapeHTML(formatDisplayDateOnly(delivery?.deliveredAt))}</td>
+      <td>${options.canEditMaterialDelivery ? renderMembershipDeliveryNotesInput(row, delivery, notes, deliveryFormId) : escapeHTML(notes || '-')}</td>
     </tr>
   `;
+}
+
+function membershipDeliveryFormId(row) {
+  return [
+    'membership-delivery',
+    row.membership_id ?? 'legacy',
+    row.user_id ?? 'user',
+    row.semana ?? '0',
+  ]
+    .map((part) => String(part).replace(/[^a-zA-Z0-9_-]/g, '-'))
+    .join('-');
+}
+
+function renderMembershipDeliveryDateInput(row, delivery, formId, cycleNumber, notes) {
+  return `
+    <form class="db-membership-delivery-form" id="${formId}" data-form="membership-delivery" data-stay-section="admin-table-editor">
+      <input type="hidden" name="membership_id" value="${escapeAttr(row.membership_id ?? '')}" />
+      <input type="hidden" name="user_id" value="${escapeAttr(row.user_id ?? '')}" />
+      <input type="hidden" name="cycle_number" value="${escapeAttr(String(cycleNumber))}" />
+      <input type="hidden" name="delivered_at_original" value="${escapeAttr(delivery?.deliveredAt ?? '')}" />
+      <input type="hidden" name="notes_original" value="${escapeAttr(notes || '')}" />
+      <input class="db-table-input db-table-input--compact db-membership-editable-cell" name="delivered_at" type="date" value="${escapeAttr(delivery?.deliveredAt ?? '')}" aria-label="Fecha real de entrega" />
+    </form>
+  `;
+}
+
+function renderMembershipDeliveryNotesInput(row, delivery, notes, formId) {
+  return `
+    <div class="db-membership-delivery-edit">
+      <textarea class="db-table-input db-table-input--notes db-membership-editable-cell" form="${formId}" name="notes" rows="3" aria-label="Notas de entrega">${escapeHTML(notes || '')}</textarea>
+    </div>
+  `;
+}
+
+function membershipEditableDeliveryNotes(row, delivery, options = {}) {
+  const explicitNotes = delivery?.deliveryNotes ?? row.material_delivery_notes;
+  if (explicitNotes !== null && explicitNotes !== undefined) return String(explicitNotes);
+  const fallback = options.fallback ?? row?.notas;
+  return fallback && fallback !== '-' ? String(fallback) : '';
 }
 
 
@@ -4112,10 +4231,29 @@ function formatDateOnly(value) {
   return String(value).slice(0, 10);
 }
 
+function formatDisplayDateOnly(value) {
+  const raw = formatDateOnly(value);
+  if (!raw || raw === '-') return '-';
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return raw;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()}`;
+}
+
+function formatDisplayDateList(values = []) {
+  return values
+    .map((value) => formatDisplayDateOnly(value))
+    .filter((value) => value && value !== '-')
+    .join(', ');
+}
+
 function formatDateTime(value) {
   if (!value) return '-';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return formatDateOnly(value);
+  if (Number.isNaN(date.getTime())) return formatDisplayDateOnly(value);
   return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
@@ -4229,7 +4367,7 @@ function sessionsForMembershipWeek(week, sessions = []) {
 
 function membershipSessionNotes(sessions = [], membershipNotes = '') {
   const sessionNotes = sessions.map((session) => {
-    const date = formatDateOnly(session.session_date);
+    const date = formatDisplayDateOnly(session.session_date);
     const detail = [session.notes, session.concept, session.status]
       .filter(Boolean)
       .join(' · ');
@@ -4276,7 +4414,7 @@ function buildLegacyMembershipsFromSessions(sessions = []) {
   return [...grouped.values()];
 }
 
-function buildMembershipRows(memberships = [], sessions = [], transactions = []) {
+function buildMembershipRows(memberships = [], sessions = [], transactions = [], materialDeliveries = []) {
   const sourceMemberships = (memberships ?? []).length
     ? memberships
     : buildLegacyMembershipsFromSessions(sessions);
@@ -4340,20 +4478,25 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [])
         const fechaSaldo = covered ? (coveringPayment?.date ?? availableCreditDate ?? week.fecha_esperada) : null;
         let estado = 'PENDIENTE';
         let saldo = null;
+        let saldo_tipo = null;
 
         if (covered) {
           if (fechaSaldo < week.fecha_esperada) estado = 'ADELANTADO';
-          else if (fechaSaldo === week.fecha_esperada) estado = 'CORRIENTE';
+          else if (compareDateOnly(fechaSaldo, week.week_end) <= 0) estado = 'CORRIENTE';
           else estado = 'ATRASADO';
 
           availableCredit -= weekObligation;
           saldo = availableCredit > 0 ? availableCredit : null;
           if (availableCredit <= 0) availableCreditDate = null;
-        } else if (compareDateOnly(week.fecha_esperada, today) <= 0) {
+        } else if (compareDateOnly(week.week_end, today) < 0) {
           estado = 'ATRASADO';
           saldo = availableCredit - weekObligation;
+          saldo_tipo = 'adeudo';
           availableCredit = 0;
           availableCreditDate = null;
+        } else if (availableCredit < weekObligation) {
+          saldo = availableCredit - weekObligation;
+          saldo_tipo = 'pendiente';
         }
 
         rows.push({
@@ -4373,20 +4516,73 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [])
           estado_operativo: String(membership.status ?? 'active').toUpperCase(),
           fecha_de_saldo: fechaSaldo,
           saldo,
+          saldo_tipo,
           notas: membershipSessionNotes(weekSessions, membership.notes),
         });
       });
     });
 
-  return rows;
+  return applyMembershipMaterialDeliveries(rows, materialDeliveries);
+}
+
+function materialDeliveryKey({ membershipId = null, userId = null, cycleNumber = null }) {
+  return [
+    membershipId ? String(membershipId) : 'legacy',
+    userId ? String(userId) : '',
+    Number(cycleNumber ?? 0),
+  ].join('|');
+}
+
+function applyMembershipMaterialDeliveries(rows = [], materialDeliveries = []) {
+  if (!rows.length || !materialDeliveries?.length) return rows;
+
+  const deliveriesByKey = new Map();
+  materialDeliveries.forEach((delivery) => {
+    const cycleNumber = Number(delivery.cycle_number ?? delivery.cycleNumber ?? 0);
+    if (!Number.isFinite(cycleNumber) || cycleNumber < 1) return;
+    const key = materialDeliveryKey({
+      membershipId: delivery.membership_id ?? null,
+      userId: delivery.user_id,
+      cycleNumber,
+    });
+    deliveriesByKey.set(key, delivery);
+  });
+
+  return rows.map((row) => {
+    const weekNumber = Number(row.semana ?? 0);
+    if (!Number.isFinite(weekNumber) || weekNumber < 1) return row;
+    const cycleNumber = Math.floor((weekNumber - 1) / 4) + 1;
+    const exactKey = materialDeliveryKey({
+      membershipId: row.membership_id ?? null,
+      userId: row.user_id,
+      cycleNumber,
+    });
+    const legacyKey = materialDeliveryKey({
+      membershipId: null,
+      userId: row.user_id,
+      cycleNumber,
+    });
+    const delivery = deliveriesByKey.get(exactKey) ?? deliveriesByKey.get(legacyKey);
+    if (!delivery) return row;
+
+    return {
+      ...row,
+      material_cycle_number: cycleNumber,
+      material_delivered_at: delivery.delivered_at ? formatDateOnly(delivery.delivered_at) : null,
+      material_delivery_notes: delivery.notes ?? '',
+    };
+  });
 }
 
 function formatMembershipRowBalance(row) {
   const saldo = Number(row?.saldo ?? 0);
   if (!row || row.saldo === null || row.saldo === undefined || saldo === 0) return '-';
-  return saldo < 0
-    ? `Adeudo ${money(Math.abs(saldo))}`
-    : `Crédito ${money(saldo)}`;
+  if (saldo < 0) {
+    return row.saldo_tipo === 'pendiente'
+      ? `Pendiente por pagar ${money(Math.abs(saldo))}`
+      : `Adeudo ${money(Math.abs(saldo))}`;
+  }
+  return `Crédito ${money(saldo)}`;
 }
 
 function renderMembershipNotices(membershipRows = []) {
@@ -4434,30 +4630,208 @@ function renderMembershipNotices(membershipRows = []) {
   `;
 }
 
-function membershipBalanceSummary(rows = []) {
-  const openRows = rows.filter((row) => !row.fecha_de_saldo && row.estado === 'ATRASADO');
-  const pendingBalance = openRows.reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
-  const creditBalance = rows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
-  if (pendingBalance < 0) return `Adeudo ${money(Math.abs(pendingBalance))}`;
-  if (creditBalance > 0) return `Crédito ${money(creditBalance)}`;
-  return 'Al corriente';
+function membershipBalanceParts(rows = []) {
+  const overdue = rows
+    .filter((row) => row.saldo_tipo === 'adeudo')
+    .reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
+  const pending = rows
+    .filter((row) => row.saldo_tipo === 'pendiente')
+    .reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
+  const credit = rows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
+  return { overdue, pending, credit };
+}
+
+function membershipOverdueBalanceSummary(rows = []) {
+  const { overdue, credit } = membershipBalanceParts(rows);
+  if (overdue < 0) return money(Math.abs(overdue));
+  if (credit > 0) return `Crédito ${money(credit)}`;
+  return 'Sin saldo vencido';
+}
+
+function membershipPendingBalanceSummary(rows = []) {
+  const { pending } = membershipBalanceParts(rows);
+  return pending < 0 ? money(Math.abs(pending)) : 'Sin saldo pendiente';
 }
 
 function membershipSummaryTone(key, value) {
   const normalized = normalizeCatalogValue(value);
   if (key === 'status') {
+    if (normalized === 'CON ADEUDO') return 'danger';
     if (normalized === 'ACTIVE') return 'success';
     if (normalized === 'PAUSED') return 'warning';
-    if (normalized === 'CANCELLED' || normalized === 'EXPIRED') return 'danger';
+      if (normalized === 'CANCELLED' || normalized === 'EXPIRED') return 'danger';
+  }
+  if (key === 'overdue-balance') {
+    if (normalized.includes('SIN SALDO')) return 'success';
+    if (normalized.includes('CREDITO')) return 'success';
+    return 'danger';
+  }
+  if (key === 'pending-balance') {
+    return 'muted';
   }
   if (key === 'balance') {
-    if (normalized.includes('ADEUDO')) return 'danger';
+    if (normalized.includes('ADEUDO') || normalized.includes('ATRASO')) return 'danger';
     if (normalized.includes('CREDITO') || normalized.includes('CORRIENTE')) return 'success';
   }
   if (key === 'expired') {
     return normalized.includes('SIN MEMBRESIAS VENCIDAS') ? 'success' : 'danger';
   }
   return 'neutral';
+}
+
+function membershipDisplayStatus(rows = []) {
+  const latest = rows
+    .slice()
+    .sort((a, b) => compareDateOnly(a.fecha_esperada, b.fecha_esperada))
+    .at(-1);
+  if (!latest) return '-';
+  if (rows.some(rowHasOpenMembershipDebt)) return 'CON ADEUDO';
+  return latest.estado_operativo || '-';
+}
+
+function monthLabel(monthKey) {
+  if (!monthKey) return '-';
+  const [year, month] = String(monthKey).split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return String(monthKey);
+  return new Date(year, month - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+}
+
+function endOfNextMonth(monthKey) {
+  const [year, month] = String(monthKey).split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+  const date = new Date(year, month + 1, 0);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function rowHasOpenMembershipDebt(row) {
+  return row?.saldo_tipo === 'adeudo' || (row?.estado === 'ATRASADO' && !row?.fecha_de_saldo);
+}
+
+function membershipCurrentBalanceValue(rows = []) {
+  const openRows = rows.filter((row) => row.saldo_tipo === 'adeudo' || row.saldo_tipo === 'pendiente');
+  const pendingBalance = openRows.reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
+  const creditBalance = rows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
+  return pendingBalance < 0 ? pendingBalance : creditBalance;
+}
+
+function membershipIsActiveAndCurrent(rows = []) {
+  const latest = rows
+    .slice()
+    .sort((a, b) => compareDateOnly(a.fecha_esperada, b.fecha_esperada))
+    .at(-1);
+  return latest?.estado_operativo === 'ACTIVE' && !rows.some(rowHasOpenMembershipDebt);
+}
+
+function membershipMaterialDeliveries(rows = []) {
+  const sortedRows = rows
+    .slice()
+    .sort((a, b) => Number(a.semana ?? 0) - Number(b.semana ?? 0));
+  const cycles = new Map();
+  const currentBalance = membershipCurrentBalanceValue(rows);
+  const today = todayDateInputValue();
+  const latest = sortedRows[sortedRows.length - 1] ?? {};
+  const membershipActive = latest.estado_operativo === 'ACTIVE';
+
+  sortedRows.forEach((row) => {
+    const weekNumber = Number(row.semana ?? 0);
+    if (!Number.isFinite(weekNumber) || weekNumber < 1) return;
+    const cycleNumber = Math.floor((weekNumber - 1) / 4) + 1;
+    const current = cycles.get(cycleNumber) ?? {
+      cycleNumber,
+      rows: [],
+      sessionDates: new Set(),
+    };
+
+    current.rows.push(row);
+    (Array.isArray(row.sesiones_usadas_lista) ? row.sesiones_usadas_lista : []).forEach((date) => {
+      current.sessionDates.add(formatDateOnly(date));
+    });
+    cycles.set(cycleNumber, current);
+  });
+
+  return [...cycles.values()]
+    .sort((a, b) => a.cycleNumber - b.cycleNumber)
+    .map((cycle) => {
+      const rowList = cycle.rows.sort((a, b) => Number(a.semana ?? 0) - Number(b.semana ?? 0));
+      const firstWeek = (cycle.cycleNumber - 1) * 4 + 1;
+      const lastWeek = firstWeek + 3;
+      const periodStart = rowList[0]?.fecha_esperada ?? null;
+      const periodEnd = periodStart ? addDaysToDateOnly(periodStart, 27) : null;
+      const deliveryBase = periodEnd ? addDaysToDateOnly(periodEnd, 28) : null;
+      const lateWeeks = rowList.filter((row) => row.estado === 'ATRASADO' && row.fecha_de_saldo).length;
+      const missingWeeks = Math.max(0, 4 - rowList.length);
+      const unpaidWeeks = rowList.filter((row) => row.saldo_tipo === 'adeudo' || row.saldo_tipo === 'pendiente').length;
+      const pendingWeeks = missingWeeks + unpaidWeeks;
+      const estimatedDelivery = deliveryBase ? addDaysToDateOnly(deliveryBase, lateWeeks * 7) : null;
+      const deliveredRow = rowList.find((row) => row.material_delivered_at);
+      const deliveredAt = deliveredRow?.material_delivered_at ?? null;
+      const deliveryNotes = deliveredRow?.material_delivery_notes ?? null;
+      let status = 'PROGRAMADA';
+      let reason = 'Entrega programada según regla contractual';
+
+      if (deliveredAt) {
+        status = 'ENTREGADA';
+        reason = deliveryNotes || `Material entregado el ${formatDisplayDateOnly(deliveredAt)}`;
+      } else if (pendingWeeks > 0 || currentBalance < 0) {
+        status = 'BLOQUEADA POR ADEUDO';
+        reason = pendingWeeks > 0
+          ? `${pendingWeeks} semana${pendingWeeks === 1 ? '' : 's'} pendiente${pendingWeeks === 1 ? '' : 's'} de pago`
+          : 'Saldo actual negativo';
+      } else if (!membershipActive) {
+        status = 'BLOQUEADA POR MEMBRESÍA INACTIVA';
+        reason = `Membresía ${latest.estado_operativo || '-'}`;
+      } else if (lateWeeks > 0 && compareDateOnly(today, estimatedDelivery) < 0) {
+        status = 'DIFERIDA POR ATRASO';
+        reason = `${lateWeeks} semana${lateWeeks === 1 ? '' : 's'} ${lateWeeks === 1 ? 'fue saldada' : 'fueron saldadas'} con atraso`;
+      } else if (lateWeeks === 0 && compareDateOnly(today, deliveryBase) < 0) {
+        status = 'PROGRAMADA';
+        reason = 'Sin atrasos; entrega programada al cierre del siguiente ciclo';
+      } else {
+        status = 'DISPONIBLE';
+        reason = lateWeeks > 0
+          ? `${lateWeeks} semana${lateWeeks === 1 ? '' : 's'} de atraso aplicada${lateWeeks === 1 ? '' : 's'}`
+          : 'Fecha de entrega alcanzada';
+      }
+
+      return {
+        cycle: `Mes ${cycle.cycleNumber}`,
+        firstWeek,
+        lastWeek,
+        includedWeeks: `Semana ${firstWeek} a Semana ${lastWeek}`,
+        workedPeriod: `${formatDisplayDateOnly(periodStart)} a ${formatDisplayDateOnly(periodEnd)}`,
+        deliveryBase,
+        lateWeeks,
+        delayApplied: lateWeeks ? `${lateWeeks} semana${lateWeeks === 1 ? '' : 's'}` : 'Sin atraso',
+        estimatedDelivery,
+        deliveredAt,
+        deliveryNotes,
+        pendingWeeks,
+        status,
+        sessionDates: [...cycle.sessionDates].sort(compareDateOnly),
+        reason,
+      };
+    });
+}
+
+function membershipDeliveryByWeek(rows = []) {
+  const deliveries = membershipMaterialDeliveries(rows);
+  const byWeek = new Map();
+
+  deliveries.forEach((delivery) => {
+    for (let week = delivery.firstWeek; week <= delivery.lastWeek; week += 1) {
+      byWeek.set(week, delivery);
+    }
+  });
+
+  return byWeek;
+}
+
+function nextMembershipDeliveryText(rows = []) {
+  const deliveries = membershipMaterialDeliveries(rows);
+  if (!deliveries.length) return 'Sin material trabajado';
+  const nextDelivery = deliveries.find((item) => item.status !== 'ENTREGADA');
+  if (!nextDelivery) return 'Sin próxima entrega';
+  return `${formatDisplayDateOnly(nextDelivery.estimatedDelivery)} · ${nextDelivery.status}`;
 }
 
 function renderMembershipSummary(rows = []) {
@@ -4483,15 +4857,16 @@ function renderMembershipSummary(rows = []) {
 
   const expiredText = expiredMemberships.size
     ? [...expiredMemberships.values()]
-      .map((item) => `${formatDateOnly(item.start)} a ${formatDateOnly(item.end)}`)
+      .map((item) => `${formatDisplayDateOnly(item.start)} a ${formatDisplayDateOnly(item.end)}`)
       .join(', ')
     : 'Sin membresías vencidas';
 
   const items = [
-    { key: 'status', label: 'ESTADO DE MEMBRESÍA:', value: latest.estado_operativo || '-' },
-    { key: 'balance', label: 'SALDO:', value: membershipBalanceSummary(rows) },
-    { key: 'next-session', label: 'PRÓXIMA SESIÓN:', value: upcoming ? formatDateOnly(upcoming.fecha_de_sesion || upcoming.fecha_esperada) : 'Sin próxima sesión' },
-    { key: 'next-delivery', label: 'PRÓXIMA ENTREGA:', value: 'Pendiente por definir' },
+    { key: 'status', label: 'ESTADO DE MEMBRESÍA:', value: membershipDisplayStatus(rows) },
+    { key: 'overdue-balance', label: 'SALDO VENCIDO:', value: membershipOverdueBalanceSummary(rows) },
+    { key: 'pending-balance', label: 'SALDO PENDIENTE:', value: membershipPendingBalanceSummary(rows) },
+    { key: 'next-session', label: 'PRÓXIMA SESIÓN:', value: upcoming ? formatDisplayDateOnly(upcoming.fecha_de_sesion || upcoming.fecha_esperada) : 'Sin próxima sesión' },
+    { key: 'next-delivery', label: 'PRÓXIMA ENTREGA:', value: nextMembershipDeliveryText(rows) },
     { key: 'expired', label: 'MEMBRESÍAS VENCIDAS:', value: expiredText },
   ];
 
@@ -4594,7 +4969,7 @@ function renderStatCard(label, value) {
 function eventLabel(event) {
   const name = event.name ?? `Evento ${event.id}`;
   const date = event.event_date ?? event.date;
-  return date ? `${name} · ${formatDateOnly(date)}` : name;
+  return date ? `${name} · ${formatDisplayDateOnly(date)}` : name;
 }
 
 async function fetchEventFinanceOptions(context = 'finance') {
@@ -4823,6 +5198,11 @@ async function handleErpForm(form) {
     return;
   }
 
+  if (type === 'membership-delivery') {
+    await handleMembershipDelivery(form, values);
+    return;
+  }
+
   if ('user_id' in values && !values.user_id) {
     showToast('Selecciona un usuario valido.', 'error');
     return;
@@ -4928,6 +5308,106 @@ async function handleMembershipCancel(form, values = formValues(form)) {
   showToast('Membresía cancelada.', 'success');
   form.reset();
   navigate('erp-ops');
+}
+
+async function handleMembershipDelivery(form, values = formValues(form)) {
+  if (!hasRole('admin')) {
+    showToast('Acceso no autorizado.', 'error');
+    return;
+  }
+  const staySection = form.dataset.staySection;
+  const ok = await saveMembershipDeliveryValues(values);
+  if (!ok) return;
+
+  showToast('Entrega de material guardada.', 'success');
+  if (staySection === 'admin-table-editor') {
+    navigate('admin-table-editor');
+  } else {
+    form.reset();
+    navigate('erp-ops');
+  }
+}
+
+async function saveMembershipDeliveryValues(values = {}) {
+  const membershipId = String(values.membership_id ?? '').trim() || null;
+  const cycleNumber = Number(values.cycle_number ?? 0);
+  const deliveredAt = values.delivered_at ? formatDateOnly(values.delivered_at) : null;
+  let userId = String(values.user_id ?? '').trim();
+
+  if (!Number.isFinite(cycleNumber) || cycleNumber < 1) {
+    showToast('Ingresa un ciclo valido.', 'error');
+    return false;
+  }
+
+  if (!deliveredAt) {
+    showToast('Ingresa la fecha real de entrega.', 'error');
+    return false;
+  }
+
+  if (membershipId) {
+    const cachedMembership = (state.data.membershipOpsOptions ?? [])
+      .find((membership) => String(membership.id) === membershipId);
+    if (cachedMembership?.user_id) {
+      userId = String(cachedMembership.user_id);
+    } else {
+      const { data, error } = await supabase
+        .from('memberships')
+        .select('user_id')
+        .eq('id', membershipId)
+        .maybeSingle();
+      if (error) {
+        console.error('[HR] membership delivery membership lookup:', error);
+        showToast('No se pudo validar la membresía.', 'error');
+        return false;
+      }
+      if (data?.user_id) userId = String(data.user_id);
+    }
+  }
+
+  if (!userId) {
+    showToast('Selecciona un usuario o una membresía.', 'error');
+    return false;
+  }
+
+  const payload = {
+    membership_id: membershipId,
+    user_id: userId,
+    cycle_number: cycleNumber,
+    delivered_at: deliveredAt,
+    notes: String(values.notes ?? '').trim() || null,
+  };
+
+  let existingQuery = supabase
+    .from('membership_material_deliveries')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('cycle_number', cycleNumber)
+    .limit(1);
+
+  existingQuery = membershipId
+    ? existingQuery.eq('membership_id', membershipId)
+    : existingQuery.is('membership_id', null);
+
+  const { data: existingRows, error: lookupError } = await existingQuery;
+  if (lookupError) {
+    console.error('[HR] membership delivery lookup:', lookupError);
+    showToast('No se pudo revisar la entrega existente.', 'error');
+    return false;
+  }
+
+  const existingId = existingRows?.[0]?.id;
+  const request = existingId
+    ? supabase.from('membership_material_deliveries').update(payload).eq('id', existingId)
+    : supabase.from('membership_material_deliveries').insert(payload);
+
+  const { error } = await request;
+  if (error) {
+    console.error('[HR] membership delivery save:', error);
+    showToast('No se pudo guardar la entrega de material.', 'error');
+    return false;
+  }
+
+  return true;
 }
 
 async function handleAdminUserMerge(form, values = formValues(form)) {
@@ -5174,7 +5654,7 @@ function operationReceiptRows(form) {
 
   if (form.dataset.form === 'transaction-create') {
     rows.push(
-      ['Fecha', values.date ? formatDateOnly(values.date) : formatDateOnly(new Date().toISOString())],
+      ['Fecha', values.date ? formatDisplayDateOnly(values.date) : formatDisplayDateOnly(new Date().toISOString())],
       ['Tipo', values.type || '-'],
       ['Concepto', values.concept || '-'],
       ['Monto', money(values.amount || 0)],
@@ -5186,7 +5666,7 @@ function operationReceiptRows(form) {
   if (form.dataset.form === 'session-create') {
     const status = values.status || 'sin apartado';
     rows.push(
-      ['Fecha', values.session_date ? formatDateOnly(values.session_date) : '-'],
+      ['Fecha', values.session_date ? formatDisplayDateOnly(values.session_date) : '-'],
       ['Servicio', sessionConfig?.label || values.type || '-'],
       ['Status', status],
       ['Concepto', values.concept || '-'],
@@ -5516,7 +5996,7 @@ function renderEventPermissionsEditor(user) {
         <tr data-search-row data-search-text="${escapeAttr(searchText)}">
           <td class="db-event-permissions__event">
             <strong>${escapeHTML(event.name ?? event.event_key ?? 'Evento')}</strong>
-            <small>${escapeHTML(event.event_key ?? '')} ${event.event_date ? `· ${formatDateOnly(event.event_date)}` : ''}</small>
+            <small>${escapeHTML(event.event_key ?? '')} ${event.event_date ? `· ${formatDisplayDateOnly(event.event_date)}` : ''}</small>
           </td>
           ${EVENT_PERMISSION_FLAGS.map(([flag, label]) => `
             <td>
@@ -5923,6 +6403,11 @@ async function handleAdminTableSaveAll() {
 
   const tableName = state.data.adminTableName || 'users';
   persistAdminTableSearchFromDOM(tableName);
+  if (tableName === 'membership_dashboard') {
+    await handleMembershipDashboardSaveAll();
+    return;
+  }
+
   const config = TABLE_EDITOR_CONFIG[tableName];
 
   if (!config) {
@@ -5962,6 +6447,79 @@ async function handleAdminTableSaveAll() {
 
   for (const item of pending) {
     const ok = await saveAdminTableRow(tableName, config, item.original, { ...item.payload }, { confirmUserId: false });
+    if (!ok) return;
+  }
+
+  showToast('Cambios guardados.', 'success');
+  navigate('admin-table-editor');
+}
+
+function collectMembershipDeliveryFormChange(form) {
+  const values = formValues(form);
+  const beforeDeliveredAt = values.delivered_at_original ?? '';
+  const beforeNotes = values.notes_original ?? '';
+  const afterDeliveredAt = values.delivered_at ?? '';
+  const afterNotes = values.notes ?? '';
+  const changes = [];
+
+  if (String(beforeDeliveredAt) !== String(afterDeliveredAt)) {
+    changes.push({
+      field: 'Fecha de entrega',
+      beforeValue: beforeDeliveredAt ? formatDisplayDateOnly(beforeDeliveredAt) : '-',
+      afterValue: afterDeliveredAt ? formatDisplayDateOnly(afterDeliveredAt) : '-',
+    });
+  }
+
+  if (String(beforeNotes) !== String(afterNotes)) {
+    changes.push({
+      field: 'Notas',
+      beforeValue: beforeNotes || '-',
+      afterValue: afterNotes || '-',
+    });
+  }
+
+  if (!changes.length) return null;
+
+  return {
+    values,
+    changes,
+    label: `Semana ciclo ${values.cycle_number || '-'}`,
+  };
+}
+
+async function handleMembershipDashboardSaveAll() {
+  if (!requireAdminMutation()) return;
+  persistAdminTableSearchFromDOM('membership_dashboard');
+
+  const forms = [...document.querySelectorAll('form[data-form="membership-delivery"][data-stay-section="admin-table-editor"]')];
+  const pending = forms
+    .map(collectMembershipDeliveryFormChange)
+    .filter(Boolean);
+
+  if (!pending.length) {
+    showToast('No hay cambios pendientes.', 'info');
+    return;
+  }
+
+  const invalid = pending.find((item) => !item.values.delivered_at);
+  if (invalid) {
+    showToast('Fecha de entrega es obligatoria para guardar cambios de entrega.', 'error');
+    return;
+  }
+
+  const summary = pending.flatMap((item, index) => item.changes.map((change) => (
+    `${index + 1}. ${item.label} - ${change.field}: ${change.beforeValue} -> ${change.afterValue}`
+  )));
+  const extraCount = Math.max(0, summary.length - 18);
+  const preview = summary.slice(0, 18).join('\n');
+  const confirmed = window.confirm(
+    `Vas a guardar ${pending.length} fila${pending.length === 1 ? '' : 's'} con ${summary.length} cambio${summary.length === 1 ? '' : 's'}:\n\n${preview}${extraCount ? `\n... y ${extraCount} cambio${extraCount === 1 ? '' : 's'} más.` : ''}\n\n¿Confirmas guardar estos cambios?`
+  );
+
+  if (!confirmed) return;
+
+  for (const item of pending) {
+    const ok = await saveMembershipDeliveryValues(item.values);
     if (!ok) return;
   }
 
@@ -6223,7 +6781,7 @@ async function handleFinancePdfExport() {
           participantName(tx.from_user_id),
           participantName(tx.to_user_id),
           participantName(tx.owner_user_id),
-          formatDateOnly(tx.movement_date ?? tx.date),
+          formatDisplayDateOnly(tx.movement_date ?? tx.date),
           tx.payment_method ?? tx.via ?? '-',
           tx.created_by_user_id ?? '-',
           tx.notes ?? '-',
@@ -6232,7 +6790,7 @@ async function handleFinancePdfExport() {
           tx.concept ?? '-',
           tx.type ?? '-',
           money(Number(tx.amount ?? 0)),
-          formatDateOnly(tx.date),
+          formatDisplayDateOnly(tx.date),
           tx.status ?? '-',
           tx.username ?? tx.user_id ?? '-',
         ]),
@@ -6635,6 +7193,7 @@ function attachMainDelegation() {
     if (form.dataset.form === 'admin-table-update') handleAdminTableUpdate(form);
     if (form.dataset.form === 'user-merge') handleErpForm(form);
     if (form.dataset.form === 'membership-cancel') handleErpForm(form);
+    if (form.dataset.form === 'membership-delivery') handleErpForm(form);
     if (form.dataset.form?.endsWith('-create') && !form.dataset.form.startsWith('task-')) {
       handleErpForm(form);
     }
