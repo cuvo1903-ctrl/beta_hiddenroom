@@ -1,5 +1,5 @@
 const SITE_STATUS = "BETA Sitio en contrucción";
-const SITE_VERSION = "V. 0.4.0";
+const SITE_VERSION = "V. 0.4.1";
 const GA_MEASUREMENT_ID = "G-VNHC1Z3FXZ";
 
 function initAnalytics() {
