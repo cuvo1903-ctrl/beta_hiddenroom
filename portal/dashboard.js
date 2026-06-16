@@ -446,10 +446,10 @@ const TABLE_EDITOR_CONFIG = {
   hr_transactions: {
     label: 'hr_transactions',
     primaryKey: 'id',
-    select: 'id, event_id, event_key, movement_type, concept, amount, hidden_room_share, from_user_id, to_user_id, owner_user_id, payment_method, movement_date, notes, user_id, username, created_by_user_id, type, via, date',
+    select: 'id, event_id, event_key, movement_type, concept, amount, hidden_room_share, from_user_id, to_user_id, owner_user_id, owner_entity_id, payment_method, movement_date, notes, user_id, username, created_by_user_id, type, via, date',
     defaultSort: { field: 'movement_date', direction: 'desc' },
     lockedFields: ['id', 'created_by_user_id'],
-    editableFields: ['event_id', 'event_key', 'movement_type', 'concept', 'amount', 'hidden_room_share', 'from_user_id', 'to_user_id', 'owner_user_id', 'payment_method', 'movement_date', 'notes', 'user_id', 'username', 'type', 'via', 'date'],
+    editableFields: ['event_id', 'event_key', 'movement_type', 'concept', 'amount', 'hidden_room_share', 'from_user_id', 'to_user_id', 'owner_user_id', 'owner_entity_id', 'payment_method', 'movement_date', 'notes', 'user_id', 'username', 'type', 'via', 'date'],
     hiddenColumns: ['id'],
   },
   sessions: {
@@ -555,6 +555,15 @@ const TABLE_EDITOR_CONFIG = {
     defaultSort: { field: 'created_at', direction: 'desc' },
     lockedFields: ['id', 'created_at'],
     editableFields: ['user_id', 'role', 'status', 'notes'],
+    hiddenColumns: ['id'],
+  },
+  finance_entities: {
+    label: 'Entidades financieras',
+    primaryKey: 'id',
+    select: 'id, entity_key, name, entity_type, status, notes, created_at',
+    defaultSort: { field: 'name', direction: 'asc' },
+    lockedFields: ['id', 'created_at'],
+    editableFields: ['entity_key', 'name', 'entity_type', 'status', 'notes'],
     hiddenColumns: ['id'],
   },
 };
@@ -2221,6 +2230,7 @@ async function renderCollabFinance() {
   const permissions = eventAccessFor(selectedEvent);
   const { data, error } = await fetchCollabFinanceTransactions(filters, eventId, events);
   const participants = await fetchParticipantsForEvent(selectedEvent?.id ?? selectedEvent?.event_id ?? eventId);
+  const financeEntities = await fetchFinanceEntities();
 
   if (error) {
     console.error('[HR] renderCollabFinance:', error);
@@ -2239,7 +2249,7 @@ async function renderCollabFinance() {
     ${renderEventInfo(selectedEvent)}
     ${renderEventSummaryCards(eventSummaryFor(selectedEvent, data ?? []))}
     ${renderEventRightsChart(selectedEvent, data ?? [])}
-    ${permissions.can_add_finance ? renderEventMovementForm(selectedEvent, 'collab-event-movement-create', participants) : ''}
+    ${permissions.can_add_finance ? renderEventMovementForm(selectedEvent, 'collab-event-movement-create', participants, financeEntities) : ''}
     ${renderEventFinanceTransactionsTable(data ?? [], { canEdit: permissions.can_edit_finance })}
   `);
 }
@@ -2600,6 +2610,7 @@ async function renderErpFinance() {
     state.data.erpFinanceRows = data ?? [];
     state.data.erpFinanceFilters = filters;
     await fetchAllEventParticipants();
+    await fetchFinanceEntities();
 
     return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
       ${renderFinanceScopeFilters(filters, events)}
@@ -2642,6 +2653,7 @@ async function renderErpOps() {
   await ensureUsersLoaded();
   const events = await ensureFinanceEventsLoaded();
   const participants = await fetchAllEventParticipants();
+  const financeEntities = await fetchFinanceEntities();
   const memberships = await fetchMembershipOptionsForOps();
   const activeForm = persistedDataValue('erpOpsForm', 'transaction');
   const opsForms = {
@@ -2743,7 +2755,7 @@ async function renderErpOps() {
     },
     eventMovement: {
       label: 'Nuevo movimiento',
-      html: renderEventMovementOpsForm(events, participants),
+      html: renderEventMovementOpsForm(events, participants, financeEntities),
     },
     eventParticipant: {
       label: 'Nuevo participante',
@@ -3163,6 +3175,46 @@ function participantName(userId) {
   return participant ? participantLabel(participant) : userLabel(userId);
 }
 
+async function fetchFinanceEntities() {
+  if (Array.isArray(state.data.financeEntities)) return state.data.financeEntities;
+
+  const { data, error } = await supabase
+    .from('finance_entities')
+    .select('id, entity_key, name, entity_type, status, notes')
+    .eq('status', 'active')
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.info('[HR] finance entities unavailable:', error.message);
+    state.data.financeEntities = [];
+    return [];
+  }
+
+  state.data.financeEntities = data ?? [];
+  return state.data.financeEntities;
+}
+
+function financeEntityLabel(entity) {
+  if (!entity) return '-';
+  const type = entity.entity_type ? ` · ${entity.entity_type}` : '';
+  return `${entity.name ?? entity.entity_key ?? 'Entidad'}${type}`;
+}
+
+function renderFinanceEntityOptions(entities = [], selectedValue = '', placeholder = 'Sin asignar') {
+  return [
+    optionHTML('', placeholder, selectedValue),
+    ...entities.map((entity) => optionHTML(String(entity.id), financeEntityLabel(entity), selectedValue)),
+  ].join('');
+}
+
+function financeEntityName(entityId, legacyUserId = null) {
+  if (entityId) {
+    const entity = (state.data.financeEntities ?? []).find((item) => String(item.id) === String(entityId));
+    if (entity) return financeEntityLabel(entity);
+  }
+  return legacyUserId ? participantName(legacyUserId) : '-';
+}
+
 function eventRightsTotals(event, transactions = []) {
   const expenseTransactions = (transactions ?? []).filter((tx) => {
     const amount = Number(tx.amount ?? 0);
@@ -3356,7 +3408,7 @@ function eventSummaryFor(event, transactions = []) {
   };
 }
 
-function renderEventMovementForm(event, formName, participants = []) {
+function renderEventMovementForm(event, formName, participants = [], financeEntities = []) {
   const today = todayDateInputValue();
   return `
     <article class="db-card">
@@ -3375,7 +3427,7 @@ function renderEventMovementForm(event, formName, participants = []) {
             <label class="db-field"><span>FROM</span><select name="from_user_id">${renderParticipantOptions(participants, '', 'Sin origen')}</select></label>
             <label class="db-field"><span>TO</span><select name="to_user_id">${renderParticipantOptions(participants, '', 'Sin destino')}</select></label>
           </div>
-          <label class="db-field"><span>CORRESPONDE A</span><select name="owner_user_id">${renderParticipantOptions(participants, '', 'Sin asignar')}</select></label>
+          <label class="db-field"><span>CORRESPONDE A</span><select name="owner_entity_id">${renderFinanceEntityOptions(financeEntities, '', 'Sin asignar')}</select></label>
           <div class="db-form__row">
             <label class="db-field"><span>Monto Absorbido Internamente (M.A.I.)</span><input name="hidden_room_share" type="number" step="0.01" value="0" /></label>
             <label class="db-field"><span>Payment Method</span><input name="payment_method" /></label>
@@ -3389,7 +3441,7 @@ function renderEventMovementForm(event, formName, participants = []) {
   `;
 }
 
-function renderEventMovementOpsForm(events = [], participants = []) {
+function renderEventMovementOpsForm(events = [], participants = [], financeEntities = []) {
   const today = todayDateInputValue();
   const availableEvents = events.filter((event) => event.id || event.event_id);
 
@@ -3414,7 +3466,7 @@ function renderEventMovementOpsForm(events = [], participants = []) {
         <label class="db-field"><span>FROM</span><select name="from_user_id">${renderParticipantOptions(participants, '', 'Sin origen')}</select></label>
         <label class="db-field"><span>TO</span><select name="to_user_id">${renderParticipantOptions(participants, '', 'Sin destino')}</select></label>
       </div>
-      <label class="db-field"><span>CORRESPONDE A</span><select name="owner_user_id">${renderParticipantOptions(participants, '', 'Sin asignar')}</select></label>
+      <label class="db-field"><span>CORRESPONDE A</span><select name="owner_entity_id">${renderFinanceEntityOptions(financeEntities, '', 'Sin asignar')}</select></label>
       <div class="db-form__row">
         <label class="db-field"><span>Monto Absorbido Internamente (M.A.I.)</span><input name="hidden_room_share" type="number" step="0.01" value="0" /></label>
         <label class="db-field"><span>Payment Method</span><input name="payment_method" /></label>
@@ -3474,7 +3526,7 @@ function renderEventFinanceTransactionsTable(transactions, options = {}) {
     ['hidden_room_share', 'M.A.I.'],
     ['from_user_id', 'FROM'],
     ['to_user_id', 'TO'],
-    ['owner_user_id', 'Corresponde a'],
+    ['owner_entity_id', 'Corresponde a'],
     ['movement_date', 'Fecha'],
     ['payment_method', 'Metodo'],
     ['created_by_user_id', 'Creado por'],
@@ -3489,7 +3541,7 @@ function renderEventFinanceTransactionsTable(transactions, options = {}) {
         <td>${money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0))}</td>
         <td>${escapeHTML(participantName(tx.from_user_id))}</td>
         <td>${escapeHTML(participantName(tx.to_user_id))}</td>
-        <td>${escapeHTML(participantName(tx.owner_user_id))}</td>
+        <td>${escapeHTML(financeEntityName(tx.owner_entity_id, tx.owner_user_id))}</td>
         <td>${escapeHTML(formatDisplayDateOnly(tx.movement_date ?? tx.date))}</td>
         <td>${escapeHTML(tx.payment_method ?? tx.via ?? '-')}</td>
         <td>${escapeHTML(tx.created_by_user_id ?? '-')}</td>
@@ -5721,7 +5773,8 @@ async function handleEventMovementCreate(form, values = formValues(form)) {
     hidden_room_share: signedHiddenRoomShare,
     from_user_id: values.from_user_id ?? null,
     to_user_id: values.to_user_id ?? null,
-    owner_user_id: values.owner_user_id ?? null,
+    owner_user_id: null,
+    owner_entity_id: values.owner_entity_id ?? null,
     payment_method: values.payment_method ?? null,
     movement_date: movementDate,
     notes: values.notes ?? null,
@@ -6996,7 +7049,7 @@ async function handleFinancePdfExport() {
           money(Number(tx.hidden_room_share ?? eventFinanceAmount(tx) ?? 0)),
           participantName(tx.from_user_id),
           participantName(tx.to_user_id),
-          participantName(tx.owner_user_id),
+          financeEntityName(tx.owner_entity_id, tx.owner_user_id),
           formatDisplayDateOnly(tx.movement_date ?? tx.date),
           tx.payment_method ?? tx.via ?? '-',
           tx.created_by_user_id ?? '-',
