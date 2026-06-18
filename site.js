@@ -76,13 +76,6 @@ function renderSubNav(module) {
     ].join("");
   }
 
-  if (module === "media" && document.body.classList.contains("media-admin")) {
-    return `
-      <a class="hr-nav__action" href="/media/" target="_blank" rel="noopener">Ver Media</a>
-      <button class="hr-nav__action" id="logout-button" type="button">Cerrar sesión</button>
-    `;
-  }
-
   if (module === "games") {
     return [
       item("/minijuegos/", "Juegos", true),
@@ -145,6 +138,13 @@ function renderNavActions(module) {
     `;
   }
 
+  if (module === "media" && document.body.classList.contains("media-admin")) {
+    return `
+      <a class="hr-nav__action" href="/media/" target="_blank" rel="noopener">Ver Media</a>
+      <button class="hr-nav__action" id="logout-button" type="button">Cerrar sesión</button>
+    `;
+  }
+
   if (module === "tickets") {
     return `
       <span id="session-user" class="hr-nav__user">Verificando sesión…</span>
@@ -179,13 +179,280 @@ function renderGlobalNav() {
             <a href="${href}"${key === activeModule ? ' aria-current="page"' : ""}>${label}</a>
           `).join("")}
         </nav>
-        <div class="${actionsClass}">${renderNavActions(module)}</div>
+        <div class="${actionsClass}">
+          ${renderNavActions(module)}
+          <button class="hr-nav__mobile-toggle" id="hr-global-menu-toggle" type="button"
+            aria-label="Abrir navegación global" aria-expanded="false" aria-controls="hr-global-menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </div>
+      <nav class="hr-nav__mobile-menu" id="hr-global-menu" aria-label="Navegación global móvil" hidden>
+        ${ECOSYSTEM_LINKS.map(([key, href, label]) => `
+          <a href="${href}"${key === activeModule ? ' aria-current="page"' : ""}>${label}</a>
+        `).join("")}
+      </nav>
       ${subnav ? `<nav class="hr-nav__sub" aria-label="Navegación contextual">${subnav}</nav>` : ""}
     </header>
   `;
 
   document.body.classList.toggle("hr-has-subnav", Boolean(subnav));
+}
+
+function globalMenuIsOpen() {
+  return !document.getElementById("hr-global-menu")?.hidden;
+}
+
+function portalDrawerIsOpen() {
+  return !document.getElementById("hr-portal-drawer")?.hidden;
+}
+
+function setGlobalMenu(open) {
+  const menu = document.getElementById("hr-global-menu");
+  const toggle = document.getElementById("hr-global-menu-toggle");
+  if (!menu || !toggle) return;
+
+  if (open) setPortalDrawer(false);
+  if (open) {
+    const portalUserMenu = document.getElementById("js-user-menu");
+    if (portalUserMenu) portalUserMenu.hidden = true;
+    document.getElementById("js-user-menu-toggle")?.setAttribute("aria-expanded", "false");
+  }
+  menu.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.setAttribute("aria-label", open ? "Cerrar navegación global" : "Abrir navegación global");
+  document.body.classList.toggle("hr-global-menu-open", open);
+  if (open) showGlobalHeader();
+}
+
+function portalSource(section) {
+  return document.querySelector(`.db-sidebar__item[data-section="${CSS.escape(section)}"]`);
+}
+
+function sourceIsAvailable(source) {
+  if (!source || source.hidden) return false;
+  return !source.closest("[hidden]");
+}
+
+function navigatePortalSource(source) {
+  if (!sourceIsAvailable(source)) return;
+  setPortalDrawer(false);
+
+  if (source.matches("a[href]")) {
+    window.location.href = source.href;
+    return;
+  }
+
+  const section = source.dataset.section;
+  if (section) window.history.replaceState(null, "", `#${section}`);
+  source.click();
+}
+
+function setPortalDrawer(open) {
+  const drawer = document.getElementById("hr-portal-drawer");
+  const backdrop = document.getElementById("hr-portal-backdrop");
+  const toggle = document.querySelector('[data-portal-mobile-action="more"]');
+  if (!drawer || !backdrop) return;
+
+  if (open) setGlobalMenu(false);
+  if (open) {
+    const portalUserMenu = document.getElementById("js-user-menu");
+    if (portalUserMenu) portalUserMenu.hidden = true;
+  }
+  drawer.hidden = !open;
+  backdrop.hidden = !open;
+  toggle?.setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("hr-portal-drawer-open", open);
+  if (open) showGlobalHeader();
+}
+
+function renderPortalMobileNavigation() {
+  if (!document.body.classList.contains("db-body")) return;
+
+  const nav = document.createElement("nav");
+  nav.className = "hr-portal-bottom-nav";
+  nav.setAttribute("aria-label", "Navegación móvil del Portal");
+  nav.innerHTML = `
+    <button type="button" data-portal-mobile-section="overview"><span>IN</span>Inicio</button>
+    <button type="button" data-portal-mobile-section="client-membership"><span>CL</span>Cliente</button>
+    <button type="button" data-portal-mobile-section="collab-tasks"><span>CO</span>Colaborador</button>
+    <button type="button" data-portal-mobile-section="erp-ops"><span>ER</span>ERP</button>
+    <button type="button" data-portal-mobile-action="more" aria-expanded="false"
+      aria-controls="hr-portal-drawer"><span>•••</span>Más</button>
+  `;
+
+  const backdrop = document.createElement("button");
+  backdrop.className = "hr-portal-backdrop";
+  backdrop.id = "hr-portal-backdrop";
+  backdrop.type = "button";
+  backdrop.setAttribute("aria-label", "Cerrar menú del Portal");
+  backdrop.hidden = true;
+
+  const drawer = document.createElement("section");
+  drawer.className = "hr-portal-drawer";
+  drawer.id = "hr-portal-drawer";
+  drawer.setAttribute("aria-label", "Más secciones del Portal");
+  drawer.hidden = true;
+  drawer.innerHTML = `
+    <header>
+      <span>Portal / Más</span>
+      <button type="button" data-portal-drawer-close aria-label="Cerrar">×</button>
+    </header>
+    <div class="hr-portal-drawer__grid"></div>
+  `;
+
+  document.body.append(backdrop, drawer, nav);
+
+  const drawerItems = [
+    ["client-downloads", "Descargas"],
+    ["client-sessions", "Sesiones"],
+    ["client-transactions", "Transacciones"],
+    ["client-contracts", "Contratos"],
+    ["client-membership", "Membresía"],
+    ["client-tickets", "Tickets"],
+    ["client-store", "Tienda"],
+    ["client-rewards", "Premios"],
+    ["@minigames", "Minijuegos"],
+    ["collab-docs", "Documentos/Contratos"],
+    ["collab-finance", "Financiero"],
+    ["collab-tasks", "SCRUM/Tareas"],
+    ["collab-log", "Actividad"],
+    ["@tickets", "Boletera"],
+  ];
+
+  function syncPortalMobilePermissions() {
+    nav.querySelectorAll("[data-portal-mobile-section]").forEach((button) => {
+      const source = portalSource(button.dataset.portalMobileSection);
+      button.hidden = !sourceIsAvailable(source);
+    });
+    const visiblePrimary = [...nav.querySelectorAll("button")].filter((button) => !button.hidden).length;
+    nav.style.setProperty("--hr-portal-nav-items", String(visiblePrimary));
+
+    const grid = drawer.querySelector(".hr-portal-drawer__grid");
+    grid.replaceChildren();
+
+    for (const [target, label] of drawerItems) {
+      let source;
+      if (target === "@minigames") {
+        source = document.querySelector('.db-sidebar__item[data-sidebar-action="minigames"]');
+      } else if (target === "@tickets") {
+        source = [...document.querySelectorAll('.db-sidebar__item[href*="tickets"]')]
+          .find(sourceIsAvailable);
+      } else {
+        source = portalSource(target);
+      }
+
+      if (!sourceIsAvailable(source)) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.addEventListener("click", () => navigatePortalSource(source));
+      grid.append(button);
+    }
+  }
+
+  nav.addEventListener("click", (event) => {
+    const sectionButton = event.target.closest("[data-portal-mobile-section]");
+    if (sectionButton) {
+      navigatePortalSource(portalSource(sectionButton.dataset.portalMobileSection));
+      return;
+    }
+
+    if (event.target.closest('[data-portal-mobile-action="more"]')) {
+      setPortalDrawer(!portalDrawerIsOpen());
+    }
+  });
+
+  backdrop.addEventListener("click", () => setPortalDrawer(false));
+  drawer.querySelector("[data-portal-drawer-close]")
+    ?.addEventListener("click", () => setPortalDrawer(false));
+
+  const sidebar = document.getElementById("js-sidebar");
+  if (sidebar) {
+    new MutationObserver(syncPortalMobilePermissions).observe(sidebar, {
+      attributes: true,
+      attributeFilter: ["hidden"],
+      subtree: true,
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const active = event.target.closest(".db-sidebar__item[data-section]");
+    if (!active) return;
+    const section = active.dataset.section;
+    const primarySection = section.startsWith("client-")
+      ? "client-membership"
+      : section.startsWith("collab-")
+        ? "collab-tasks"
+        : section.startsWith("erp-") || section === "admin-table-editor"
+          ? "erp-ops"
+          : section;
+    nav.querySelectorAll("[data-portal-mobile-section]").forEach((button) => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.portalMobileSection === primarySection,
+      );
+    });
+  });
+
+  syncPortalMobilePermissions();
+  nav.querySelector('[data-portal-mobile-section="overview"]')?.classList.add("is-active");
+}
+
+let lastHeaderScroll = 0;
+
+function showGlobalHeader() {
+  document.body.classList.remove("hr-nav-is-hidden");
+}
+
+function focusedFormControl() {
+  return document.activeElement?.matches?.("input, textarea, select, [contenteditable='true']");
+}
+
+function handleHeaderAutoHide(scrollTop) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    showGlobalHeader();
+    return;
+  }
+
+  const delta = scrollTop - lastHeaderScroll;
+  const locked = globalMenuIsOpen() || portalDrawerIsOpen() || focusedFormControl();
+
+  if (locked || scrollTop < 24 || delta < -6) {
+    showGlobalHeader();
+  } else if (delta > 8) {
+    document.body.classList.add("hr-nav-is-hidden");
+  }
+
+  lastHeaderScroll = Math.max(0, scrollTop);
+}
+
+function initNavigationInteractions() {
+  document.getElementById("hr-global-menu-toggle")?.addEventListener("click", () => {
+    setGlobalMenu(!globalMenuIsOpen());
+  });
+
+  document.getElementById("hr-global-menu")?.addEventListener("click", (event) => {
+    if (event.target.closest("a")) setGlobalMenu(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    setGlobalMenu(false);
+    setPortalDrawer(false);
+  });
+
+  document.addEventListener("focusin", showGlobalHeader);
+  window.addEventListener("scroll", () => handleHeaderAutoHide(window.scrollY), { passive: true });
+
+  const portalScroller = document.querySelector(".db-main");
+  portalScroller?.addEventListener(
+    "scroll",
+    () => handleHeaderAutoHide(portalScroller.scrollTop),
+    { passive: true },
+  );
+
+  renderPortalMobileNavigation();
 }
 
 function syncPortalSubNav() {
@@ -268,6 +535,7 @@ function initGlobalFooter() {
 }
 
 renderGlobalNav();
+initNavigationInteractions();
 initGlobalFooter();
 
 document.querySelectorAll(".site-status").forEach(el => {

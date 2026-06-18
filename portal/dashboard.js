@@ -1330,18 +1330,7 @@ function attachSidebarListeners() {
 function toggleUnifiedNavigation({ menuOnly = false } = {}) {
   const toggle = document.getElementById('js-user-menu-toggle');
   const menu = document.getElementById('js-user-menu');
-  const sidebar = document.getElementById('js-sidebar');
   const shouldOpenMenu = menu?.hidden;
-  const isMobile = window.matchMedia('(max-width: 800px)').matches;
-
-  if (!menuOnly && isMobile) {
-    const open = !state.sidebarOpen;
-    if (menu) menu.hidden = true;
-    setState({ sidebarOpen: open });
-    sidebar?.classList.toggle('db-sidebar--open', open);
-    toggle?.setAttribute('aria-expanded', String(Boolean(open)));
-    return;
-  }
 
   if (menu) menu.hidden = !shouldOpenMenu;
   toggle?.setAttribute('aria-expanded', String(Boolean(shouldOpenMenu)));
