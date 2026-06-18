@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Hidden Room Media">
+  <meta property="og:title" content="Hidden Room Media">
+  <meta property="og:description" content="La voz de la cultura underground.">
+  <meta property="og:image" content="https://hiddenroom.mx/assets/img/social_preview.webp">
+  <meta property="og:url" content="https://hiddenroom.mx/media/post.html">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://hiddenroom.mx/media/post.html">
+  <title>Hidden Room Media</title>
+  <link rel="icon" type="image/webp" href="/assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./media.css">
+  <script id="article-jsonld" type="application/ld+json">{}</script>
+</head>
+<body class="media-body post-page">
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
+
+  <header class="media-nav">
+    <a href="/" class="media-nav__logo" aria-label="Hidden Room">
+      <img src="../assets/img/white_logo.webp" alt="Hidden Room">
+    </a>
+    <nav class="media-nav__links" aria-label="Media">
+      <a href="/media/">← Archivo</a>
+      <a href="/portal/">Portal</a>
+    </nav>
+  </header>
+
+  <main id="post-main">
+    <div id="post-status" class="post-loading" role="status">Cargando artículo…</div>
+    <article id="post-article" class="post-article" hidden>
+      <header class="post-header">
+        <a id="post-category" class="post-category" href="/media/"></a>
+        <h1 id="post-title"></h1>
+        <p id="post-excerpt" class="post-excerpt"></p>
+        <div class="post-meta">
+          <span id="post-author"></span>
+          <time id="post-date"></time>
+          <span id="post-views"></span>
+        </div>
+      </header>
+      <figure id="post-cover-wrap" class="post-cover" hidden>
+        <img id="post-cover" alt="">
+      </figure>
+      <div id="post-content" class="post-content"></div>
+      <footer class="post-footer">
+        <div id="post-tags" class="post-tags"></div>
+        <div class="post-share" aria-label="Compartir artículo">
+          <span>Compartir</span>
+          <a id="share-x" target="_blank" rel="noopener noreferrer">X</a>
+          <a id="share-facebook" target="_blank" rel="noopener noreferrer">Facebook</a>
+          <a id="share-whatsapp" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          <button id="share-copy" type="button">Copiar link</button>
+        </div>
+      </footer>
+    </article>
+
+    <section id="related-section" class="related-section" hidden>
+      <div class="media-section-heading"><span>03</span><h2>También en el archivo</h2></div>
+      <div id="related-grid" class="posts-grid"></div>
+    </section>
+  </main>
+
+  <footer class="media-footer">
+    <img src="../assets/img/white_logo.webp" alt="Hidden Room">
+    <p>La casa del under · México</p>
+  </footer>
+
+  <script src="../site.js"></script>
+  <script type="module" src="./post.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Tienda oficial de Hidden Room.">
+  <title>Tienda | Hidden Room</title>
+  <link rel="icon" type="image/webp" href="../assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="store.css">
+</head>
+<body data-page="catalog">
+  <header class="store-header">
+    <a class="brand" href="../" aria-label="Ir al inicio de Hidden Room">
+      <img src="../assets/img/white_logo.webp" alt="Hidden Room">
+    </a>
+    <nav aria-label="Navegación de tienda">
+      <a class="active" href="index.html">Tienda</a>
+      <a href="cart.html">Carrito <span class="cart-count" aria-label="productos en carrito">0</span></a>
+      <a href="orders.html" data-auth-link hidden>Mis compras</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="store-hero">
+      <p class="eyebrow">Hidden Room Supply</p>
+      <h1>Objetos para<br><span>hacer ruido.</span></h1>
+      <p class="hero-copy">Drops, música y herramientas de la casa del under.</p>
+    </section>
+
+    <section class="catalog-section" aria-labelledby="catalog-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Catálogo</p>
+          <h2 id="catalog-title">Selección actual</h2>
+        </div>
+        <p>Precios en MXN. El precio final siempre se valida de forma segura antes del pago.</p>
+      </div>
+      <div class="catalog-tools">
+        <label>
+          <span>Buscar</span>
+          <input id="product-search" type="search" placeholder="Producto, categoría…">
+        </label>
+        <label>
+          <span>Categoría</span>
+          <select id="category-filter">
+            <option value="">Todas las categorías</option>
+          </select>
+        </label>
+      </div>
+      <div id="product-grid" class="product-grid"><p>Cargando productos…</p></div>
+    </section>
+  </main>
+
+  <div id="store-notice" class="notice" role="status" aria-live="polite"></div>
+
+  <footer class="store-footer">
+    <span>Hidden Room © 2026</span>
+    <a href="../">Volver a hiddenroom.mx</a>
+  </footer>
+
+  <script type="module" src="store.js"></script>
+</body>
+</html>

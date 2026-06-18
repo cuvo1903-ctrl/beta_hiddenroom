@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis compras | Hidden Room</title>
+  <link rel="icon" type="image/webp" href="../assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="store.css">
+</head>
+<body>
+  <header class="store-header">
+    <a class="brand" href="../"><img src="../assets/img/white_logo.webp" alt="Hidden Room"></a>
+    <nav aria-label="Navegación de tienda">
+      <a href="index.html">Tienda</a>
+      <a href="cart.html">Carrito</a>
+      <a class="active" href="orders.html">Mis compras</a>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    <div class="page-title">
+      <p class="eyebrow">Tu cuenta</p>
+      <h1>Mis compras</h1>
+    </div>
+    <p id="orders-status" class="account-notice">Cargando tus compras…</p>
+    <section id="orders-list" class="orders-list"></section>
+  </main>
+
+  <script type="module" src="orders.js"></script>
+</body>
+</html>

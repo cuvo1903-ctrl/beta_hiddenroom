@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin de tienda | Hidden Room</title>
+  <link rel="icon" type="image/webp" href="../assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="store.css?v=20260617-2">
+</head>
+<body>
+  <header class="store-header">
+    <a class="brand" href="../"><img src="../assets/img/white_logo.webp" alt="Hidden Room"></a>
+    <nav>
+      <a href="index.html">Ver tienda</a>
+      <a class="active" href="admin.html">Admin</a>
+    </nav>
+  </header>
+
+  <main id="admin-shell" class="page-shell" hidden>
+    <div class="page-title">
+      <p class="eyebrow">Administración</p>
+      <h1>Productos</h1>
+    </div>
+
+    <div class="admin-layout">
+      <form id="product-form" class="checkout-form admin-form">
+        <input id="product-id" type="hidden">
+        <h2 id="product-form-title">Nuevo producto</h2>
+        <div class="field"><label for="product-name">Nombre</label><input id="product-name" required maxlength="160"></div>
+        <div class="field"><label for="product-slug">Slug</label><input id="product-slug" required pattern="[a-z0-9-]+" maxlength="160"></div>
+        <div class="field"><label for="product-description">Descripción</label><textarea id="product-description" rows="4"></textarea></div>
+        <div class="field">
+          <label for="product-category">Categoría</label>
+          <select id="product-category" required>
+            <option value="merch">Merch</option>
+            <option value="beats">Beats</option>
+            <option value="digital">Digital</option>
+            <option value="eventos">Eventos</option>
+          </select>
+        </div>
+        <div class="field"><label for="product-price">Precio MXN</label><input id="product-price" type="number" min="0" step="0.01" required></div>
+        <div class="field"><label for="product-image-url">URL de imagen</label><input id="product-image-url" type="url"></div>
+        <div class="field"><label for="product-file-url">URL de archivo</label><input id="product-file-url"></div>
+        <div class="field"><label for="product-stock">Stock (vacío = ilimitado)</label><input id="product-stock" type="number" min="0" step="1"></div>
+        <div class="check-grid">
+          <label><input id="product-is-digital" type="checkbox"> Digital</label>
+          <label><input id="product-featured" type="checkbox"> Featured</label>
+          <label><input id="product-is-active" type="checkbox" checked> Activo</label>
+        </div>
+        <p id="admin-form-error" class="form-error" role="alert"></p>
+        <div class="product-actions">
+          <button class="primary-button" type="submit">Guardar producto</button>
+          <button id="cancel-edit" class="secondary-button" type="button" hidden>Cancelar edición</button>
+        </div>
+      </form>
+
+      <section>
+        <p id="admin-status" class="account-notice">Cargando productos…</p>
+        <div id="admin-products" class="admin-products"></div>
+      </section>
+    </div>
+  </main>
+
+  <main id="admin-denied" class="success-page">
+    <p class="eyebrow">Acceso restringido</p>
+    <h1>Validando acceso</h1>
+    <p id="admin-denied-message">Revisando tu sesión y rol.</p>
+  </main>
+
+  <script type="module" src="admin.js?v=20260617-1"></script>
+</body>
+</html>

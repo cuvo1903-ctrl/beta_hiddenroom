@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Noticias, entrevistas, coberturas y lanzamientos de Hidden Room Media.">
+  <meta property="og:title" content="Hidden Room Media">
+  <meta property="og:description" content="La voz de la cultura underground.">
+  <meta property="og:image" content="https://hiddenroom.mx/assets/img/social_preview.webp">
+  <meta property="og:url" content="https://hiddenroom.mx/media/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://hiddenroom.mx/media/">
+  <title>Hidden Room Media — La voz del under</title>
+  <link rel="icon" type="image/webp" href="/assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./media.css">
+</head>
+<body class="media-body">
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
+
+  <header class="media-nav">
+    <a href="/" class="media-nav__logo" aria-label="Hidden Room">
+      <img src="../assets/img/white_logo.webp" alt="Hidden Room">
+    </a>
+    <nav class="media-nav__links" aria-label="Media">
+      <a href="/media/" aria-current="page">Media</a>
+      <a href="/store/">Store</a>
+      <a href="/portal/">Portal</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="media-hero">
+      <p class="media-kicker">Hidden Room / Archivo cultural</p>
+      <h1>MEDIA<span>.</span></h1>
+      <p>Noticias, voces y ruido desde la casa del under.</p>
+    </section>
+
+    <section class="media-featured" id="featured-section" aria-labelledby="featured-title" hidden>
+      <div class="media-section-heading">
+        <span>01</span>
+        <h2 id="featured-title">En portada</h2>
+      </div>
+      <div id="featured-grid" class="featured-grid"></div>
+    </section>
+
+    <section class="media-feed" aria-labelledby="feed-title">
+      <div class="media-section-heading">
+        <span>02</span>
+        <h2 id="feed-title">Últimas publicaciones</h2>
+      </div>
+
+      <form class="media-toolbar" id="media-filters" role="search">
+        <label class="media-search">
+          <span class="sr-only">Buscar publicaciones</span>
+          <input id="media-search" type="search" placeholder="Buscar en el archivo…" autocomplete="off">
+        </label>
+        <label class="media-category">
+          <span class="sr-only">Filtrar por categoría</span>
+          <select id="media-category">
+            <option value="">Todas las categorías</option>
+          </select>
+        </label>
+      </form>
+
+      <div id="media-status" class="media-status" role="status">Cargando publicaciones…</div>
+      <div id="posts-grid" class="posts-grid"></div>
+      <button id="load-more" class="media-load-more" type="button" hidden>Cargar más</button>
+    </section>
+  </main>
+
+  <footer class="media-footer">
+    <img src="../assets/img/white_logo.webp" alt="Hidden Room">
+    <p>La casa del under · México</p>
+  </footer>
+
+  <script src="../site.js"></script>
+  <script type="module" src="./media.js"></script>
+</body>
+</html>

@@ -385,6 +385,8 @@ const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const AVAILABLE_ROLES = ['client', 'pr', 'collaborator', 'partner', 'admin'];
 const SECTION_LOADING_MIN_MS = 300;
 const SUGGESTED_PERMISSIONS = [
+  'Kairen AI',
+  'media.posts',
   'scrum.view',
   'scrum.edit',
   'erp.finance.input',
@@ -475,11 +477,10 @@ const TABLE_EDITOR_CONFIG = {
   },
   downloads: {
     label: 'Descargas',
-    primaryKey: null,
-    select: 'id, user_id, name, storage_path, notes, type',
+    primaryKey: 'id',
+    select: 'id, user_id, name, storage_path, notes, type, release_mode, membership_id, membership_delivery_id, membership_cycle_number',
     lockedFields: ['id'],
-    editableFields: ['user_id', 'name', 'storage_path', 'notes', 'type'],
-    matchFields: ['user_id', 'name', 'storage_path'],
+    editableFields: ['user_id', 'name', 'storage_path', 'notes', 'type', 'release_mode', 'membership_id', 'membership_delivery_id', 'membership_cycle_number'],
     hiddenColumns: ['id'],
   },
   rewards: {
@@ -1748,7 +1749,7 @@ async function renderClientDownloads() {
   if (!data || data.length === 0) {
     rows = `
       <tr class="db-table__empty-row">
-        <td colspan="4" class="db-empty">Sin descargas disponibles.</td>
+        <td colspan="5" class="db-empty">Sin descargas disponibles.</td>
       </tr>
     `;
   } else {
@@ -1756,6 +1757,7 @@ async function renderClientDownloads() {
       <tr>
         <td>${escapeHTML(p.name ?? '-')}</td>
         <td>${escapeHTML(p.type ?? '-')}</td>
+        <td>${escapeHTML(p.release_mode === 'membership_delivery' ? `Membresía · Mes ${p.membership_cycle_number ?? '-'}` : 'Directa')}</td>
         <td>${escapeHTML(p.notes ?? '-')}</td>
         <td>
           ${p.storage_path
@@ -1778,6 +1780,7 @@ async function renderClientDownloads() {
             <tr>
               <th scope="col">Producto</th>
               <th scope="col">Formato</th>
+              <th scope="col">Origen</th>
               <th scope="col">Notas</th>
               <th scope="col">Acción</th>
             </tr>
@@ -2536,7 +2539,7 @@ function renderHalfHourOptions(selectedValue = '') {
 }
 
 function optionHTML(value, label, selectedValue) {
-  return `<option value="${escapeHTML(value)}"${String(value) === String(selectedValue) ? ' selected' : ''}>${escapeHTML(label)}</option>`;
+  return `<option value="${escapeAttr(value)}"${String(value) === String(selectedValue) ? ' selected' : ''}>${escapeHTML(String(label ?? ''))}</option>`;
 }
 
 
@@ -2693,17 +2696,7 @@ async function renderErpOps() {
     },
     download: {
       label: 'Descarga',
-      html: `
-        <form class="db-form" data-form="download-create">
-          ${renderErpUserPicker('user_id', 'Usuario')}
-          ${renderUserAutofillFields()}
-          <label class="db-field"><span>Nombre</span><input name="name" required /></label>
-          <label class="db-field"><span>Ruta storage</span><input name="storage_path" required /></label>
-          <label class="db-field"><span>Tipo</span><select name="type">${ERP_TYPE_OPTIONS.map((type) => optionHTML(type, type, '')).join('')}</select></label>
-          <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
-          ${renderOperationCreateActions('CREAR')}
-        </form>
-      `,
+      html: renderDownloadOpsForm(memberships),
     },
     contract: {
       label: 'Contrato',
@@ -2885,6 +2878,55 @@ function membershipOptionLabel(membership) {
   const label = user ? userLabel(user.user_id) : (membership.username || membership.user_id || 'Usuario');
   const dates = `${formatDisplayDateOnly(membership.start_date)}${membership.end_date ? ` a ${formatDisplayDateOnly(membership.end_date)}` : ''}`;
   return `${label} · ${String(membership.status ?? 'active').toUpperCase()} · ${dates}`;
+}
+
+function renderDownloadOpsForm(memberships = []) {
+  return `
+    <form class="db-form" data-form="download-create">
+      ${renderErpUserPicker('user_id', 'Usuario')}
+      ${renderUserAutofillFields()}
+      <label class="db-field">
+        <span>¿Corresponde a una membresía?</span>
+        <select name="release_mode" data-download-release-mode>
+          <option value="immediate">No, liberar inmediatamente</option>
+          <option value="membership_delivery">Sí, liberar con un entregable</option>
+        </select>
+      </label>
+      <div class="db-form__row" data-download-membership-fields hidden>
+        <label class="db-field">
+          <span>Membresía</span>
+          <select name="membership_id" data-download-membership-id>
+            <option value="">Seleccionar membresía</option>
+            ${memberships.map((membership) => `
+              <option value="${escapeAttr(membership.id)}" data-membership-user-id="${escapeAttr(membership.user_id ?? '')}">
+                ${escapeHTML(membershipOptionLabel(membership))}
+              </option>
+            `).join('')}
+          </select>
+        </label>
+        <label class="db-field">
+          <span>Entregable / ciclo</span>
+          <select name="membership_cycle_number" data-download-cycle-number>
+            <option value="">Seleccionar ciclo</option>
+            ${renderMembershipCycleOptions()}
+          </select>
+        </label>
+      </div>
+      <label class="db-field"><span>Nombre</span><input name="name" required /></label>
+      <label class="db-field"><span>Ruta storage</span><input name="storage_path" required /></label>
+      <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
+      ${renderOperationCreateActions('CREAR')}
+    </form>
+  `;
+}
+
+function renderMembershipCycleOptions(totalCycles = 24) {
+  return Array.from({ length: totalCycles }, (_, index) => {
+    const cycle = index + 1;
+    const firstWeek = index * 4 + 1;
+    const lastWeek = firstWeek + 3;
+    return optionHTML(String(cycle), `Mes ${cycle} · Semanas ${firstWeek}-${lastWeek}`, '');
+  }).join('');
 }
 
 function renderMembershipOpsForm(memberships = []) {
@@ -4454,6 +4496,48 @@ function updateTransactionConceptFields(form) {
   }
 }
 
+function updateDownloadMembershipFields(form) {
+  if (!form || form.dataset.form !== 'download-create') return;
+  const releaseMode = form.querySelector('[data-download-release-mode]')?.value || 'immediate';
+  const membershipFields = form.querySelector('[data-download-membership-fields]');
+  const membershipInput = form.querySelector('[data-download-membership-id]');
+  const cycleInput = form.querySelector('[data-download-cycle-number]');
+  const linked = releaseMode === 'membership_delivery';
+
+  if (membershipFields) membershipFields.hidden = !linked;
+  if (membershipInput) {
+    membershipInput.required = linked;
+    if (!linked) membershipInput.value = '';
+  }
+  if (cycleInput) {
+    cycleInput.required = linked;
+    if (!linked) cycleInput.value = '';
+  }
+
+  if (linked) {
+    const userId = form.querySelector('.db-user-picker input[type="hidden"][name="user_id"]')?.value || '';
+    updateDownloadMembershipOptions(form, userId);
+  }
+}
+
+function updateDownloadMembershipOptions(form, userId = '') {
+  const membershipInput = form?.querySelector('[data-download-membership-id]');
+  if (!membershipInput) return;
+
+  const options = [...membershipInput.options].filter((option) => option.value);
+  const matching = [];
+  options.forEach((option) => {
+    const matches = !userId || String(option.dataset.membershipUserId ?? '') === String(userId);
+    option.hidden = !matches;
+    option.disabled = !matches;
+    if (matches) matching.push(option);
+  });
+
+  const selected = membershipInput.selectedOptions?.[0];
+  if (selected?.disabled) membershipInput.value = '';
+  if (userId && matching.length === 1) membershipInput.value = matching[0].value;
+}
+
 function formatDateOnly(value) {
   if (!value) return '-';
   return String(value).slice(0, 10);
@@ -4816,16 +4900,32 @@ function formatMembershipRowBalance(row) {
   return `Crédito ${money(saldo)}`;
 }
 
+function membershipCurrentCreditValue(rows = []) {
+  const latestByMembership = new Map();
+
+  rows.forEach((row) => {
+    const key = String(row.membership_id ?? `legacy-${row.user_id ?? ''}`);
+    const current = latestByMembership.get(key);
+    if (!current || Number(row.semana ?? 0) >= Number(current.semana ?? 0)) {
+      latestByMembership.set(key, row);
+    }
+  });
+
+  return [...latestByMembership.values()]
+    .reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
+}
+
 function renderMembershipNotices(membershipRows = []) {
   if (!membershipRows.length) return '';
 
   const paidLateCount = membershipRows
     .filter((row) => row.estado === 'ATRASADO' && row.fecha_de_saldo)
     .length;
-  const openRows = membershipRows.filter((row) => !row.fecha_de_saldo && row.estado === 'ATRASADO');
-  const pendingBalance = openRows.reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
-  const creditBalance = membershipRows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
-  const latestBalance = pendingBalance < 0 ? pendingBalance : creditBalance;
+  const openBalance = membershipRows
+    .filter((row) => row.saldo_tipo === 'adeudo' || row.saldo_tipo === 'pendiente')
+    .reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
+  const currentCredit = membershipCurrentCreditValue(membershipRows);
+  const latestBalance = openBalance < 0 ? openBalance : currentCredit;
   const notices = [];
 
   if (paidLateCount > 0) {
@@ -4868,7 +4968,7 @@ function membershipBalanceParts(rows = []) {
   const pending = rows
     .filter((row) => row.saldo_tipo === 'pendiente')
     .reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
-  const credit = rows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
+  const credit = membershipCurrentCreditValue(rows);
   return { overdue, pending, credit };
 }
 
@@ -4938,11 +5038,10 @@ function rowHasOpenMembershipDebt(row) {
   return row?.saldo_tipo === 'adeudo' || (row?.estado === 'ATRASADO' && !row?.fecha_de_saldo);
 }
 
-function membershipCurrentBalanceValue(rows = []) {
-  const openRows = rows.filter((row) => row.saldo_tipo === 'adeudo' || row.saldo_tipo === 'pendiente');
-  const pendingBalance = openRows.reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
-  const creditBalance = rows.reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
-  return pendingBalance < 0 ? pendingBalance : creditBalance;
+function membershipCurrentOverdueValue(rows = []) {
+  return rows
+    .filter((row) => row.saldo_tipo === 'adeudo')
+    .reduce((sum, row) => sum + Math.min(0, Number(row.saldo ?? 0)), 0);
 }
 
 function membershipIsActiveAndCurrent(rows = []) {
@@ -4958,7 +5057,7 @@ function membershipMaterialDeliveries(rows = []) {
     .slice()
     .sort((a, b) => Number(a.semana ?? 0) - Number(b.semana ?? 0));
   const cycles = new Map();
-  const currentBalance = membershipCurrentBalanceValue(rows);
+  const currentOverdueBalance = membershipCurrentOverdueValue(rows);
   const today = todayDateInputValue();
   const latest = sortedRows[sortedRows.length - 1] ?? {};
   const membershipActive = latest.estado_operativo === 'ACTIVE';
@@ -4990,9 +5089,8 @@ function membershipMaterialDeliveries(rows = []) {
       const periodEnd = periodStart ? addDaysToDateOnly(periodStart, 27) : null;
       const deliveryBase = periodEnd ? addDaysToDateOnly(periodEnd, 28) : null;
       const lateWeeks = rowList.filter((row) => row.estado === 'ATRASADO' && row.fecha_de_saldo).length;
-      const missingWeeks = Math.max(0, 4 - rowList.length);
-      const unpaidWeeks = rowList.filter((row) => row.saldo_tipo === 'adeudo' || row.saldo_tipo === 'pendiente').length;
-      const pendingWeeks = missingWeeks + unpaidWeeks;
+      const overdueWeeks = rowList.filter((row) => row.saldo_tipo === 'adeudo').length;
+      const currentPendingWeeks = rowList.filter((row) => row.saldo_tipo === 'pendiente').length;
       const estimatedDelivery = deliveryBase ? addDaysToDateOnly(deliveryBase, lateWeeks * 7) : null;
       const deliveredRow = rowList.find((row) => row.material_delivered_at);
       const deliveredAt = deliveredRow?.material_delivered_at ?? null;
@@ -5003,11 +5101,11 @@ function membershipMaterialDeliveries(rows = []) {
       if (deliveredAt) {
         status = 'ENTREGADA';
         reason = deliveryNotes || `Material entregado el ${formatDisplayDateOnly(deliveredAt)}`;
-      } else if (pendingWeeks > 0 || currentBalance < 0) {
+      } else if (overdueWeeks > 0 || currentOverdueBalance < 0) {
         status = 'BLOQUEADA POR ADEUDO';
-        reason = pendingWeeks > 0
-          ? `${pendingWeeks} semana${pendingWeeks === 1 ? '' : 's'} pendiente${pendingWeeks === 1 ? '' : 's'} de pago`
-          : 'Saldo actual negativo';
+        reason = overdueWeeks > 0
+          ? `${overdueWeeks} semana${overdueWeeks === 1 ? '' : 's'} vencida${overdueWeeks === 1 ? '' : 's'} sin pagar`
+          : 'Existe saldo vencido';
       } else if (!membershipActive) {
         status = 'BLOQUEADA POR MEMBRESÍA INACTIVA';
         reason = `Membresía ${latest.estado_operativo || '-'}`;
@@ -5036,7 +5134,8 @@ function membershipMaterialDeliveries(rows = []) {
         estimatedDelivery,
         deliveredAt,
         deliveryNotes,
-        pendingWeeks,
+        overdueWeeks,
+        currentPendingWeeks,
         status,
         sessionDates: [...cycle.sessionDates].sort(compareDateOnly),
         reason,
@@ -5388,6 +5487,66 @@ async function handleTaskDelete(taskId) {
   navigate('collab-tasks');
 }
 
+async function prepareDownloadValues(values) {
+  const releaseMode = String(values.release_mode || 'immediate');
+  values.release_mode = releaseMode === 'membership_delivery' ? 'membership_delivery' : 'immediate';
+
+  if (values.release_mode === 'immediate') {
+    values.membership_id = null;
+    values.membership_delivery_id = null;
+    values.membership_cycle_number = null;
+    return true;
+  }
+
+  const membershipId = String(values.membership_id ?? '').trim();
+  const cycleNumber = Number(values.membership_cycle_number ?? 0);
+  if (!membershipId) {
+    showToast('Selecciona la membresía correspondiente a esta descarga.', 'error');
+    return false;
+  }
+  if (!Number.isFinite(cycleNumber) || cycleNumber < 1) {
+    showToast('Selecciona el ciclo de entrega.', 'error');
+    return false;
+  }
+
+  let membership = (state.data.membershipOpsOptions ?? [])
+    .find((item) => String(item.id) === membershipId);
+  if (!membership) {
+    const { data, error } = await supabase
+      .from('memberships')
+      .select('id, user_id')
+      .eq('id', membershipId)
+      .maybeSingle();
+    if (error || !data) {
+      console.error('[HR] download membership lookup:', error);
+      showToast('No se pudo validar la membresía seleccionada.', 'error');
+      return false;
+    }
+    membership = data;
+  }
+
+  values.user_id = membership.user_id;
+  values.membership_id = membershipId;
+  values.membership_cycle_number = cycleNumber;
+
+  const { data: delivery, error: deliveryError } = await supabase
+    .from('membership_material_deliveries')
+    .select('id')
+    .eq('membership_id', membershipId)
+    .eq('user_id', membership.user_id)
+    .eq('cycle_number', cycleNumber)
+    .maybeSingle();
+
+  if (deliveryError) {
+    console.error('[HR] download delivery lookup:', deliveryError);
+    showToast('No se pudo validar el entregable de membresía.', 'error');
+    return false;
+  }
+
+  values.membership_delivery_id = delivery?.id ?? null;
+  return true;
+}
+
 async function handleErpForm(form) {
   const type = form.dataset.form;
   const values = formValues(form);
@@ -5424,12 +5583,17 @@ async function handleErpForm(form) {
     return;
   }
 
+  if (type === 'download-create') {
+    const prepared = await prepareDownloadValues(values);
+    if (!prepared) return;
+  }
+
   if ('user_id' in values && !values.user_id) {
     showToast('Selecciona un usuario valido.', 'error');
     return;
   }
 
-  const numericKeys = ['amount', 'cost', 'weekly_price', 'sessions_per_week'];
+  const numericKeys = ['amount', 'cost', 'weekly_price', 'sessions_per_week', 'membership_cycle_number'];
   numericKeys.forEach((key) => {
     if (values[key] != null) values[key] = Number(values[key]);
   });
@@ -5524,6 +5688,7 @@ async function handleErpForm(form) {
       await handleOperationReceipt(form);
     }
     form.reset();
+    if (type === 'download-create') updateDownloadMembershipFields(form);
     delete form.dataset.operationAction;
   }
 }
@@ -5926,6 +6091,10 @@ function operationReceiptTitle(formType) {
 }
 
 function operationNotificationMessage(formType, values = {}) {
+  if (formType === 'download-create' && values.release_mode === 'membership_delivery') {
+    return `Se preparó una descarga para tu membresía. Aparecerá en Descargas cuando se entregue el material del Mes ${values.membership_cycle_number ?? '-'}.`;
+  }
+
   const labels = {
     'transaction-create': 'Se registró una transacción en tu cuenta.',
     'session-create': 'Se registró una sesión en tu cuenta.',
@@ -5979,8 +6148,14 @@ function operationReceiptRows(form) {
     rows.push(
       ['Nombre', values.name || '-'],
       ['Ruta storage', values.storage_path || '-'],
-      ['Tipo', values.type || '-']
+      ['Liberación', values.release_mode === 'membership_delivery' ? 'Entregable de membresía' : 'Inmediata']
     );
+    if (values.release_mode === 'membership_delivery') {
+      rows.push(
+        ['Membresía', values.membership_id || '-'],
+        ['Ciclo', values.membership_cycle_number || '-']
+      );
+    }
   }
 
   if (form.dataset.form === 'contract-create') {
@@ -7228,6 +7403,7 @@ function filterUserPicker(search, { clearSelection = false } = {}) {
 
   if (clearSelection && hidden) hidden.value = '';
   if (clearSelection) syncUserAutofillFields(picker, null);
+  if (clearSelection) updateDownloadMembershipOptions(picker?.closest('form'), '');
   if (!menu) return;
 
   menu.hidden = false;
@@ -7280,6 +7456,7 @@ function attachMainDelegation() {
       if (hidden) hidden.value = userOption.dataset.userValue ?? '';
       if (search) search.value = userOption.dataset.userDisplay || userLabel(userOption.dataset.userId);
       syncUserAutofillFields(picker, user);
+      updateDownloadMembershipOptions(picker?.closest('form'), user?.user_id ?? '');
       picker?.querySelector('.db-user-picker__menu')?.setAttribute('hidden', '');
       picker?.querySelectorAll('.db-user-option').forEach((option) => {
         option.hidden = false;
@@ -7452,6 +7629,12 @@ function attachMainDelegation() {
     const transactionField = e.target.closest('[data-transaction-service], [data-transaction-concept]');
     if (transactionField) {
       updateTransactionConceptFields(transactionField.closest('form'));
+      return;
+    }
+
+    const downloadReleaseMode = e.target.closest('[data-download-release-mode]');
+    if (downloadReleaseMode) {
+      updateDownloadMembershipFields(downloadReleaseMode.closest('form'));
       return;
     }
   });

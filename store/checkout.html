@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout | Hidden Room</title>
+  <link rel="icon" type="image/webp" href="../assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="store.css">
+</head>
+<body data-page="checkout">
+  <header class="store-header">
+    <a class="brand" href="../"><img src="../assets/img/white_logo.webp" alt="Hidden Room"></a>
+    <nav aria-label="Navegación de tienda">
+      <a href="index.html">Tienda</a>
+      <a href="cart.html">Carrito <span class="cart-count">0</span></a>
+      <a href="orders.html" data-auth-link hidden>Mis compras</a>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    <a class="back-link" href="cart.html">← Volver al carrito</a>
+    <div class="page-title">
+      <p class="eyebrow">Pago seguro con Stripe</p>
+      <h1>Checkout</h1>
+    </div>
+
+    <div class="checkout-layout">
+      <form id="checkout-form" class="checkout-form">
+        <p id="checkout-account-notice" class="account-notice"></p>
+        <div class="field">
+          <label for="customer-name">Nombre completo</label>
+          <input id="customer-name" name="name" autocomplete="name" required maxlength="120">
+        </div>
+        <div class="field">
+          <label for="customer-email">Correo electrónico</label>
+          <input id="customer-email" name="email" type="email" autocomplete="email" required maxlength="254">
+        </div>
+        <div class="field">
+          <label for="customer-phone">Teléfono</label>
+          <input id="customer-phone" name="phone" type="tel" autocomplete="tel" required maxlength="30">
+        </div>
+        <p id="checkout-error" class="form-error" role="alert" aria-live="assertive"></p>
+        <button id="checkout-button" class="primary-button" type="submit">Finalizar compra</button>
+        <p class="secure-note">Serás redirigido a Stripe Checkout. Hidden Room no recibe ni almacena los datos de tu tarjeta.</p>
+      </form>
+      <aside id="checkout-summary" class="summary-card"></aside>
+    </div>
+  </main>
+
+  <script type="module" src="store.js"></script>
+</body>
+</html>

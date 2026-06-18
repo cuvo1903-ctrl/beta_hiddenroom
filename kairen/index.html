@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kairen - Pruebas</title>
+</head>
+<body>
+  <main>
+    <h1>Kairen</h1>
+
+    <p id="session-status">Validando sesión...</p>
+    <button id="logout-button" type="button" hidden>Cerrar sesión</button>
+
+    <section id="tester" hidden>
+      <fieldset>
+        <legend>Modelo IA</legend>
+
+        <label for="ai-provider">Provider</label>
+        <select id="ai-provider">
+          <option value="gemini">Google AI</option>
+          <option value="openrouter" disabled>OpenRouter (no configurado)</option>
+          <option value="ollama" disabled>Ollama (no configurado)</option>
+        </select>
+
+        <label for="ai-model">Modelo</label>
+        <select id="ai-model"></select>
+
+        <p>
+          Recomendaciones:
+          3.5 Flash · Gemma 4 31B ·
+          Voz → 2.5 Flash Native Audio Dialog
+        </p>
+      </fieldset>
+
+      <p id="active-model">[Kairen | Google AI | 3.1 Flash Lite]</p>
+
+      <div id="chat-output" aria-live="polite"></div>
+
+      <form id="kairen-form">
+        <label for="message">Mensaje</label>
+        <textarea id="message" name="message" rows="4" required></textarea>
+        <button id="submit-button" type="submit">Enviar</button>
+        <button id="clear-button" type="button">Limpiar chat</button>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="kairen.js?v=20260618-google-ai"></script>
+</body>
+</html>

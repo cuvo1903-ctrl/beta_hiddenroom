@@ -16,7 +16,8 @@ const getSafeRedirect = () => {
   if (!returnTo) return fallback;
 
   sessionStorage.removeItem("hr_return_after_login");
-  return returnTo.startsWith("../minijuegos/") ? returnTo : fallback;
+  const allowedReturnPaths = ["../minijuegos/", "../kairen/", "../store/", "../media/"];
+  return allowedReturnPaths.some((path) => returnTo.startsWith(path)) ? returnTo : fallback;
 };
 
 const { data: { session } } = await supabase.auth.getSession();
