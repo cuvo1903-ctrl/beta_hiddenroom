@@ -75,6 +75,10 @@ async function init() {
   }
 
   logoutButton.hidden = false;
+  document.querySelectorAll("[data-hr-account]").forEach((accountLink) => {
+    accountLink.textContent = user.email || "Usuario";
+    accountLink.href = "../portal/dashboard.html";
+  });
 
   const [
     { data: profile, error: profileError },

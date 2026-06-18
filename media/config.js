@@ -6,11 +6,16 @@ export const supabase = createClient(
 );
 
 export async function revealMediaAdminLink() {
-  const nav = document.querySelector(".media-nav__links");
-  if (!nav || nav.querySelector("[data-media-admin-link]")) return;
+  const link = document.querySelector("[data-media-admin-link]");
+  if (!link) return;
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+
+  document.querySelectorAll("[data-hr-account]").forEach((accountLink) => {
+    accountLink.textContent = user.email || "Usuario";
+    accountLink.href = "/portal/dashboard.html";
+  });
 
   const [{ data: profile }, { data: permission }] = await Promise.all([
     supabase.from("users").select("roles").eq("id", user.id).maybeSingle(),
@@ -28,11 +33,7 @@ export async function revealMediaAdminLink() {
 
   if (!isAdmin && !permission) return;
 
-  const link = document.createElement("a");
-  link.href = "/media/admin.html";
-  link.dataset.mediaAdminLink = "";
-  link.textContent = "CMS";
-  nav.append(link);
+  link.hidden = false;
 }
 
 export const MEDIA_CATEGORIES = [

@@ -68,77 +68,20 @@
 .db-layout {
   display: flex;               /* flex so sidebar + main + panel sit in a row */
   flex-direction: row;
-  height: calc(100dvh - 56px); /* subtract topbar height */
-  margin-top: 56px;             /* topbar height */
+  height: calc(100dvh - 96px);
+  margin-top: 0;
   overflow: hidden;             /* each column scrolls independently */
   max-width: 100vw;
+}
+
+@media (max-width: 760px) {
+  .db-layout { height: calc(100dvh - 90px); }
 }
 
 
 /* ================================================================
    3. TOPBAR
 ================================================================ */
-.db-topbar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 56px;
-  z-index: var(--z-nav);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-xl);
-  background: var(--near-black);
-  border-bottom: var(--border-subtle);
-}
-
-.db-topbar__brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  flex-shrink: 0;
-}
-
-.db-topbar__logo {
-  display: flex;
-  align-items: center;
-  line-height: 0;
-  flex-shrink: 0;
-}
-
-.db-logo-img {
-  width: 120px !important;
-  max-width: 120px !important;
-  height: auto !important;
-  max-height: 44px !important;
-  object-fit: contain !important;
-  display: block !important;
-}
-
-.db-topbar__divider {
-  width: 1px;
-  height: 20px;
-  background: var(--white-ghost);
-}
-
-.db-topbar__context {
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-  color: var(--red);
-}
-
-.db-topbar__center {
-  flex: 1;
-  text-align: center;
-}
-
-.db-topbar__section-title {
-  font-size: var(--text-sm);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--white-dim);
-}
-
 .db-topbar__actions {
   display: flex;
   align-items: center;
@@ -2390,21 +2333,6 @@
 }
 
 @media (max-width: 480px) {
-  .db-topbar {
-    padding: 0 var(--space-sm);
-    gap: var(--space-sm);
-  }
-
-  .db-logo-img {
-    width: 88px !important;
-    max-width: 88px !important;
-  }
-
-  .db-topbar__divider,
-  .db-topbar__context {
-    display: none;
-  }
-
   .db-topbar__actions {
     gap: var(--space-xs);
   }
@@ -2412,8 +2340,6 @@
   .db-user-chip__name {
     display: none;
   }
-
-  .db-topbar__section-title { display: none; }
 
   .db-section__title {
     font-size: clamp(22px, 8vw, 36px);

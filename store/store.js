@@ -402,6 +402,11 @@ function syncAccountNavigation() {
   document.querySelectorAll("[data-auth-link]").forEach((link) => {
     link.hidden = !currentSession;
   });
+
+  document.querySelectorAll("[data-hr-account]").forEach((link) => {
+    link.textContent = currentSession?.user?.email || "Portal";
+    link.href = currentSession ? "/portal/dashboard.html" : "/portal/";
+  });
 }
 
 function orderSummaryMarkup(items, includeButton) {

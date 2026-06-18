@@ -13,69 +13,16 @@
   cursor: pointer;
 }
 
-.media-admin__topbar {
-  position: fixed;
-  inset: 0 0 auto 0;
-  z-index: 30;
-  height: 62px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 0 26px;
-  border-bottom: var(--border-subtle);
-  background: rgba(8, 8, 8, .96);
-}
-
-.media-admin[data-hr-chrome] .media-admin__topbar {
-  top: 42px;
-}
-
-.media-admin__brand {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  color: var(--teal);
-  font-size: 10px;
-  letter-spacing: var(--tracking-widest);
-  text-decoration: none;
-}
-
-.media-admin__brand img {
-  width: 120px;
-}
-
-.media-admin__top-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.media-admin__top-actions a,
-.media-admin__top-actions button {
-  border: 0;
-  background: none;
-  color: var(--white-dim);
-  font: 10px var(--font-mono);
-  letter-spacing: var(--tracking-wide);
-  text-decoration: none;
-  text-transform: uppercase;
-}
-
 .media-admin__layout {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
-  padding-top: 62px;
-}
-
-.media-admin[data-hr-chrome] .media-admin__layout {
-  padding-top: 104px;
+  padding-top: 0;
 }
 
 .media-admin__sidebar {
   position: fixed;
-  top: 62px;
+  top: 96px;
   bottom: 0;
   width: 220px;
   display: flex;
@@ -83,16 +30,6 @@
   padding: 30px 18px;
   border-right: var(--border-subtle);
   background: var(--near-black);
-}
-
-.media-admin[data-hr-chrome] .media-admin__sidebar {
-  top: 104px;
-}
-
-@media (max-width: 760px) {
-  .media-admin[data-hr-chrome] .media-admin__topbar { top: 84px; }
-  .media-admin[data-hr-chrome] .media-admin__layout { padding-top: 146px; }
-  .media-admin[data-hr-chrome] .media-admin__sidebar { top: 146px; }
 }
 
 .media-admin__sidebar > p {
@@ -545,10 +482,21 @@
 }
 
 @media (max-width: 620px) {
-  .media-admin__brand span { display: none; }
-  .media-admin__top-actions a { display: none; }
   .media-admin__main { padding: 28px 16px; }
   .admin-heading { align-items: flex-start; flex-direction: column; }
   .admin-list-toolbar { grid-template-columns: 1fr; }
   .content-editor { min-height: 420px; }
+}
+
+.media-admin > .hr-site-footer {
+  margin-left: 220px;
+}
+
+@media (max-width: 900px) {
+  .media-admin[data-hr-chrome] .media-admin__sidebar { top: 96px; }
+  .media-admin > .hr-site-footer { margin-left: 0; }
+}
+
+@media (max-width: 760px) {
+  .media-admin[data-hr-chrome] .media-admin__sidebar { top: 90px; }
 }

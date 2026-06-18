@@ -27,42 +27,6 @@
   cursor: text;
 }
 
-.tickets-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  min-height: 76px;
-  padding: 14px clamp(18px, 4vw, 48px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-bottom: var(--border-subtle);
-  background: rgba(6, 6, 6, .9);
-  backdrop-filter: blur(18px);
-}
-
-.tickets-brand img {
-  width: 138px;
-}
-
-.tickets-topbar__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.tickets-session {
-  max-width: 260px;
-  overflow: hidden;
-  color: var(--white-dim);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .tickets-shell,
 .validator-shell {
   width: min(1180px, calc(100% - 36px));
@@ -675,30 +639,6 @@
 }
 
 @media (max-width: 600px) {
-  .tickets-topbar {
-    position: static;
-    align-items: flex-start;
-  }
-
-  .tickets-brand img {
-    width: 105px;
-  }
-
-  .tickets-session {
-    width: 100%;
-    max-width: 160px;
-  }
-
-  .tickets-topbar__actions {
-    gap: 7px;
-  }
-
-  .tickets-topbar .ticket-btn {
-    min-height: 34px;
-    padding: 8px 10px;
-    font-size: 8px;
-  }
-
   .ticket-form {
     grid-template-columns: 1fr;
   }
@@ -784,7 +724,6 @@
     color: #000 !important;
   }
 
-  .tickets-topbar,
   .tickets-hero,
   .tickets-admin-grid,
   .ticket-view-toolbar,

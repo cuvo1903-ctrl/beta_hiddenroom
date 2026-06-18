@@ -2,6 +2,7 @@ const SITE_STATUS = "BETA Sitio en contrucción";
 const SITE_VERSION = "V. 0.7.0";
 const GA_MEASUREMENT_ID = "G-VNHC1Z3FXZ";
 const ECOSYSTEM_LINKS = [
+  ["home", "/", "Home"],
   ["events", "/#events", "Eventos"],
   ["studio", "/#studio", "Estudios"],
   ["demonz", "/#demonz", "dem00nz"],
@@ -41,32 +42,214 @@ cleanIndexURL();
 hydrateCanonicalMeta();
 initAnalytics();
 
-function initGlobalChrome() {
+function renderSubNav(module) {
+  const path = window.location.pathname;
+  const hash = window.location.hash.slice(1);
+  const page = document.body.dataset.page || "";
+  const item = (href, label, active = false, attrs = "") => (
+    `<a class="hr-nav__sub-link" href="${href}"${active ? ' aria-current="page"' : ""}${attrs}>${label}</a>`
+  );
+
+  if (module === "media") {
+    return [
+      item("/media/", "Publicaciones", !path.includes("/admin")),
+      item("/media/#media-filters", "Categorías"),
+      item(
+        "/media/admin.html",
+        "CMS",
+        path.includes("/admin"),
+        ` data-media-admin-link${path.includes("/admin") ? "" : " hidden"}`,
+      ),
+    ].join("");
+  }
+
+  if (module === "store") {
+    return [
+      item("/store/", "Tienda", page === "catalog" || page === "product"),
+      item("/store/cart.html", 'Carrito <span class="cart-count">0</span>', page === "cart"),
+      item(
+        "/store/orders.html",
+        "Mis compras",
+        path.endsWith("/orders.html"),
+        path.endsWith("/orders.html") ? "" : " data-auth-link hidden",
+      ),
+    ].join("");
+  }
+
+  if (module === "media" && document.body.classList.contains("media-admin")) {
+    return `
+      <a class="hr-nav__action" href="/media/" target="_blank" rel="noopener">Ver Media</a>
+      <button class="hr-nav__action" id="logout-button" type="button">Cerrar sesión</button>
+    `;
+  }
+
+  if (module === "games") {
+    return [
+      item("/minijuegos/", "Juegos", true),
+      item("/portal/dashboard.html#client-rewards", "Ranking"),
+    ].join("");
+  }
+
+  if (module === "portal") {
+    return [
+      item("/portal/dashboard.html#overview", "Inicio", path.endsWith("/dashboard.html") && (!hash || hash === "overview"), ' data-portal-section="overview"'),
+      item("/portal/dashboard.html#client-membership", "Cliente", hash.startsWith("client-"), ' data-portal-section="client-membership"'),
+      item("/portal/dashboard.html#collab-tasks", "Colaborador", hash.startsWith("collab-"), ' data-portal-section="collab-tasks"'),
+      item("/portal/dashboard.html#erp-ops", "ERP", hash.startsWith("erp-") || hash === "admin-table-editor", ' data-portal-section="erp-ops"'),
+      '<span class="hr-nav__context-title" id="js-topbar-section" aria-live="polite"></span>',
+    ].join("");
+  }
+
+  if (module === "tickets") {
+    return [
+      item("/tickets/", "Eventos", path.endsWith("/tickets/") || path.endsWith("/tickets/index.html")),
+      item("/tickets/validate.html", "Validar", path.endsWith("/validate.html")),
+      item("/tickets/generate.html", "Admin", path.endsWith("/generate.html") || path.endsWith("/view.html")),
+    ].join("");
+  }
+
+  return "";
+}
+
+function renderNavActions(module) {
+  if (document.body.classList.contains("db-body")) {
+    return `
+      <button class="db-topbar__icon-btn" id="js-notifications-toggle" aria-label="Notificaciones"
+        aria-expanded="false" aria-controls="js-notifications-panel">
+        <span class="db-icon db-icon--bell" aria-hidden="true"></span>
+        <span class="db-badge" id="js-notif-count" aria-label="notificaciones sin leer" hidden></span>
+      </button>
+      <button class="db-user-chip" id="js-user-menu-toggle" aria-haspopup="true" aria-expanded="false"
+        aria-controls="js-user-menu js-sidebar" aria-label="Abrir menú">
+        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
+        <span class="db-user-chip__avatar" id="js-user-avatar" aria-hidden="true"></span>
+        <span class="db-user-chip__name" id="js-user-display-name">—</span>
+      </button>
+      <nav class="db-user-menu" id="js-user-menu" aria-label="Menú de usuario" hidden>
+        <ul class="db-user-menu__list" role="list">
+          <li><a class="db-user-menu__item" href="/">Volver al sitio</a></li>
+          <li><button class="db-user-menu__item" data-action="profile">Perfil</button></li>
+          <li><button class="db-user-menu__item" data-action="settings">Ajustes</button></li>
+          <li><button class="db-user-menu__item db-user-menu__item--danger" data-action="logout">Cerrar sesión</button></li>
+        </ul>
+      </nav>
+    `;
+  }
+
+  if (module === "store") {
+    return `
+      <a class="hr-nav__action hr-nav__action--cart" href="/store/cart.html">
+        Carrito <span class="cart-count">0</span>
+      </a>
+      <a class="hr-nav__action" href="/portal/" data-hr-account>Portal</a>
+    `;
+  }
+
+  if (module === "tickets") {
+    return `
+      <span id="session-user" class="hr-nav__user">Verificando sesión…</span>
+      <a class="hr-nav__action" href="/portal/dashboard.html">Portal</a>
+    `;
+  }
+
+  return `<a class="hr-nav__action" href="/portal/" data-hr-account>Portal</a>`;
+}
+
+function renderGlobalNav() {
+  const target = document.getElementById("hr-global-nav");
+  if (!target) return;
+
+  const module = document.body.dataset.hrContext || "home";
+  const accent = module === "media" ? "media" : "brand";
+  const activeModule = module === "tickets" ? "events" : module;
+  const subnav = renderSubNav(module);
+  const actionsClass = document.body.classList.contains("db-body")
+    ? "hr-nav__actions db-topbar__actions"
+    : "hr-nav__actions";
+
+  target.innerHTML = `
+    <header class="hr-nav" data-module="${module}" data-accent="${accent}">
+      <div class="hr-nav__main">
+        <a class="hr-nav__brand" href="/" aria-label="Hidden Room, inicio">
+          <img src="/assets/img/white_logo.webp" alt="">
+          <span>Hidden Room</span>
+        </a>
+        <nav class="hr-nav__links" aria-label="Navegación principal">
+          ${ECOSYSTEM_LINKS.map(([key, href, label]) => `
+            <a href="${href}"${key === activeModule ? ' aria-current="page"' : ""}>${label}</a>
+          `).join("")}
+        </nav>
+        <div class="${actionsClass}">${renderNavActions(module)}</div>
+      </div>
+      ${subnav ? `<nav class="hr-nav__sub" aria-label="Navegación contextual">${subnav}</nav>` : ""}
+    </header>
+  `;
+
+  document.body.classList.toggle("hr-has-subnav", Boolean(subnav));
+}
+
+function syncPortalSubNav() {
+  if (!document.body.classList.contains("db-body")) return;
+  const section = window.location.hash.slice(1);
+  if (!section) return;
+
+  const sidebarItem = document.querySelector(`.db-sidebar__item[data-section="${CSS.escape(section)}"]`);
+  if (sidebarItem && !sidebarItem.closest("[hidden]")) sidebarItem.click();
+}
+
+window.addEventListener("hashchange", syncPortalSubNav);
+window.addEventListener("DOMContentLoaded", syncPortalSubNav);
+window.addEventListener("DOMContentLoaded", () => {
+  window.setTimeout(syncPortalSubNav, 500);
+  window.setTimeout(syncPortalSubNav, 1400);
+});
+
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("[data-portal-section]");
+  if (!link || !document.body.classList.contains("db-body")) return;
+
+  const section = link.dataset.portalSection;
+  const sidebarItem = document.querySelector(`.db-sidebar__item[data-section="${CSS.escape(section)}"]`);
+  if (!sidebarItem || sidebarItem.closest("[hidden]")) return;
+
+  event.preventDefault();
+  window.history.replaceState(null, "", `#${section}`);
+  document.querySelectorAll("[data-portal-section]").forEach((item) => {
+    item.removeAttribute("aria-current");
+  });
+  link.setAttribute("aria-current", "page");
+  sidebarItem.click();
+});
+
+function initGlobalFooter() {
   const body = document.body;
   if (!body?.hasAttribute("data-hr-chrome")) return;
 
-  const context = body.dataset.hrContext || "";
-  const accent = body.dataset.hrAccent || (context === "media" ? "media" : "brand");
+  const existingFooter = body.querySelector(":scope > footer");
+  if (existingFooter) {
+    existingFooter.classList.add("hr-site-footer");
 
-  if (!body.querySelector(":scope > .hr-site-nav")) {
-    const nav = document.createElement("nav");
-    nav.className = "hr-site-nav";
-    nav.dataset.accent = accent;
-    nav.setAttribute("aria-label", "Navegación del ecosistema Hidden Room");
-    nav.innerHTML = `
-      <div class="hr-site-nav__inner">
-        <a class="hr-site-nav__home" href="/">Hidden Room / La Casa del Under</a>
-        <div class="hr-site-nav__links">
-          ${ECOSYSTEM_LINKS.map(([key, href, label]) => `
-            <a href="${href}"${key === context ? ' aria-current="page"' : ""}>${label}</a>
-          `).join("")}
-        </div>
-      </div>
-    `;
-    body.prepend(nav);
+    if (!existingFooter.querySelector("img")) {
+      const logoLink = document.createElement("a");
+      logoLink.href = "/";
+      logoLink.setAttribute("aria-label", "Hidden Room");
+      logoLink.innerHTML = '<img class="hr-site-footer__logo" src="/assets/img/white_logo.webp" alt="Hidden Room">';
+      existingFooter.prepend(logoLink);
+    }
+
+    if (!existingFooter.querySelector(".site-status")) {
+      const meta = document.createElement("div");
+      meta.className = "hr-site-footer__meta";
+      meta.innerHTML = `
+        <span>Una marca de Grupo Mysauth</span>
+        <span class="site-status"></span>
+        <a href="/changelog.html" class="site-version"></a>
+      `;
+      existingFooter.insertBefore(meta, existingFooter.lastElementChild);
+    }
   }
 
-  if (body.dataset.hrFooter !== "false" && !body.querySelector(":scope > .hr-site-footer")) {
+  if (body.dataset.hrFooter !== "false" && !existingFooter) {
     const footer = document.createElement("footer");
     footer.className = "hr-site-footer";
     footer.innerHTML = `
@@ -84,7 +267,8 @@ function initGlobalChrome() {
   }
 }
 
-initGlobalChrome();
+renderGlobalNav();
+initGlobalFooter();
 
 document.querySelectorAll(".site-status").forEach(el => {
   el.textContent = SITE_STATUS;

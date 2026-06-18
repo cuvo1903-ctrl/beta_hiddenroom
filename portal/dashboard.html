@@ -28,7 +28,8 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet" />
 </head>
 
-<body class="db-body">
+<body class="db-body" data-hr-chrome data-hr-context="portal" data-hr-footer="false">
+  <div id="hr-global-nav"></div>
 
   <!-- ═══════════════════════════════════════════════════
        CUSTOM CURSOR  (inherited from global site.js)
@@ -40,55 +41,6 @@
        TOPBAR
        Role context + global actions
   ═══════════════════════════════════════════════════ -->
-  <header class="db-topbar" role="banner">
-
-    <div class="db-topbar__brand">
-      <a href="/" class="db-topbar__logo" aria-label="Hidden Room — Home">
-        <img src="../assets/img/white_logo.webp" alt="Hidden Room" class="db-logo-img" />
-      </a>
-      <span class="db-topbar__divider" aria-hidden="true"></span>
-      <span class="db-topbar__context">EXPLORA</span>
-    </div>
-
-    <div class="db-topbar__center" aria-live="polite">
-      <!-- Populated by dashboard.js: current section title -->
-      <span class="db-topbar__section-title" id="js-topbar-section"></span>
-    </div>
-
-    <div class="db-topbar__actions">
-      <!-- Notification bell -->
-      <button
-        class="db-topbar__icon-btn"
-        id="js-notifications-toggle"
-        aria-label="Notificaciones"
-        aria-expanded="false"
-        aria-controls="js-notifications-panel"
-      >
-        <span class="db-icon db-icon--bell" aria-hidden="true"></span>
-        <span class="db-badge" id="js-notif-count" aria-label="notificaciones sin leer" hidden></span>
-      </button>
-
-      <!-- Unified navigation / user menu -->
-      <button class="db-user-chip" id="js-user-menu-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="js-user-menu js-sidebar" aria-label="Abrir menú">
-        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
-        <span class="db-user-chip__avatar" id="js-user-avatar" aria-hidden="true"></span>
-        <span class="db-user-chip__name"   id="js-user-display-name">—</span>
-      </button>
-
-      <!-- User dropdown (rendered by JS) -->
-      <nav class="db-user-menu" id="js-user-menu" aria-label="Menú de usuario" hidden>
-        <ul class="db-user-menu__list" role="list">
-          <li><a class="db-user-menu__item" href="/">Volver al sitio</a></li>
-          <li><button class="db-user-menu__item" data-action="profile">Perfil</button></li>
-          <li><button class="db-user-menu__item" data-action="settings">Ajustes</button></li>
-          <li><button class="db-user-menu__item db-user-menu__item--danger" data-action="logout">Cerrar sesión</button></li>
-        </ul>
-      </nav>
-    </div>
-
-  </header>
-
-
   <!-- ═══════════════════════════════════════════════════
        LAYOUT SHELL
   ═══════════════════════════════════════════════════ -->

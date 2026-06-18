@@ -1325,11 +1325,6 @@ function attachSidebarListeners() {
       closeUnifiedNavigation();
     });
   });
-
-  // Tap on the topbar context label also toggles the sidebar on mobile
-  document.querySelector('.db-topbar__context')?.addEventListener('click', () => {
-    toggleUnifiedNavigation();
-  });
 }
 
 function toggleUnifiedNavigation({ menuOnly = false } = {}) {
