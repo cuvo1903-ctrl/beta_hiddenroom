@@ -2761,6 +2761,31 @@ async function renderErpOps() {
       label: 'Nuevo participante',
       html: renderEventParticipantForm(),
     },
+    financeEntity: {
+      label: 'Entidad financiera',
+      html: `
+        <form class="db-form" data-form="finance-entity-create">
+          <div class="db-form__row">
+            <label class="db-field"><span>Clave</span><input name="entity_key" placeholder="productora_nombre" required /></label>
+            <label class="db-field"><span>Nombre</span><input name="name" required /></label>
+          </div>
+          <div class="db-form__row">
+            <label class="db-field"><span>Tipo</span><select name="entity_type">${[
+              ['producer', 'Productora'],
+              ['internal', 'Interna'],
+              ['partner', 'Socio'],
+              ['other', 'Otra'],
+            ].map(([value, label]) => optionHTML(value, label, 'producer')).join('')}</select></label>
+            <label class="db-field"><span>Status</span><select name="status">${[
+              ['active', 'Activo'],
+              ['inactive', 'Inactivo'],
+            ].map(([value, label]) => optionHTML(value, label, 'active')).join('')}</select></label>
+          </div>
+          <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
+          <button class="btn-primary" type="submit">Crear entidad financiera</button>
+        </form>
+      `,
+    },
     membership: {
       label: 'Membresías',
       html: renderMembershipOpsForm(memberships),
@@ -2807,6 +2832,7 @@ async function renderErpOps() {
             ['event', 'Evento'],
             ['eventMovement', 'Nuevo movimiento'],
             ['eventParticipant', 'Nuevo participante'],
+            ['financeEntity', 'Entidad financiera'],
             ['membership', 'Membresías'],
             ['userMerge', 'Fusionar usuarios'],
           ].map(([value, label]) => optionHTML(value, label, activeForm)).join('')}
@@ -5434,6 +5460,24 @@ async function handleErpForm(form) {
     values.sessions_per_week = Number(values.sessions_per_week || 1);
     if (!values.end_date) values.end_date = null;
   }
+  if (type === 'finance-entity-create') {
+    values.entity_key = String(values.entity_key ?? '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    values.name = String(values.name ?? '').trim();
+    values.entity_type = String(values.entity_type || 'producer').toLowerCase();
+    values.status = String(values.status || 'active').toLowerCase();
+    values.notes = String(values.notes ?? '').trim() || null;
+
+    if (!values.entity_key || !values.name) {
+      showToast('Ingresa una clave y nombre válidos.', 'error');
+      return;
+    }
+  }
 
   if (type === 'user-create') {
     const ok = await handleAdminUserCreate(values);
@@ -5453,6 +5497,7 @@ async function handleErpForm(form) {
     'download-create': ['downloads', operationPayload, 'Descarga creada.'],
     'contract-create': ['contracts', operationPayload, 'Contrato creado.'],
     'event-create': ['events', operationPayload, 'Evento creado.'],
+    'finance-entity-create': ['finance_entities', operationPayload, 'Entidad financiera creada.'],
   };
 
   const config = map[type];
@@ -5465,6 +5510,8 @@ async function handleErpForm(form) {
       state.data.financeEvents = null;
       state.data.collabFinanceEvents = null;
       state.data.permissionEvents = null;
+    } else if (type === 'finance-entity-create') {
+      state.data.financeEntities = null;
     } else if (shouldShareReceipt) {
       await createUserNotification(
         operationPayload.user_id,
