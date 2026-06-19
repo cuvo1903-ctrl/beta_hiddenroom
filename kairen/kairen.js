@@ -156,6 +156,14 @@ form.addEventListener("submit", async (event) => {
   messageInput.focus();
 });
 
+messageInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+
+  event.preventDefault();
+  if (messageInput.disabled || submitButton.disabled || !messageInput.value.trim()) return;
+  form.requestSubmit(submitButton);
+});
+
 clearButton.addEventListener("click", () => {
   messages.length = 0;
   renderMessages();

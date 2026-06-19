@@ -1,15 +1,14 @@
 const SITE_STATUS = "BETA Sitio en contrucción";
 const SITE_VERSION = "V. 0.7.1";
 const GA_MEASUREMENT_ID = "G-VNHC1Z3FXZ";
+const HR_SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
+const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const ECOSYSTEM_LINKS = [
-  ["home", "/", "Home"],
-  ["events", "/#events", "Eventos"],
-  ["studio", "/#studio", "Estudios"],
-  ["demonz", "/#demonz", "dem00nz"],
-  ["media", "/media/", "Media"],
-  ["store", "/store/", "Tienda"],
   ["games", "/minijuegos/", "Minijuegos"],
-  ["portal", "/portal/", "Portal"],
+  ["media", "/media/", "Media"],
+  ["store", "/store/", "Store"],
+  ["kairen", "/kairen/", "Kairen AI"],
+  ["tickets", "/tickets/", "Tickets"],
 ];
 
 function initAnalytics() {
@@ -114,16 +113,18 @@ function renderSubNav(module) {
 function renderNavActions(module) {
   if (document.body.classList.contains("db-body")) {
     return `
-      <button class="db-topbar__icon-btn" id="js-notifications-toggle" aria-label="Notificaciones"
+      <button class="hr-nav__notifications" id="js-notifications-toggle" aria-label="Notificaciones"
         aria-expanded="false" aria-controls="js-notifications-panel">
         <span class="db-icon db-icon--bell" aria-hidden="true"></span>
-        <span class="db-badge" id="js-notif-count" aria-label="notificaciones sin leer" hidden></span>
+        <span class="hr-nav__notifications-label">Notificaciones</span>
+        <span class="hr-nav__notification-count" id="js-notif-count"
+          aria-label="notificaciones sin leer" hidden></span>
       </button>
-      <button class="db-user-chip" id="js-user-menu-toggle" aria-haspopup="true" aria-expanded="false"
+      <button class="hr-nav__account hr-nav__account--button" id="js-user-menu-toggle"
+        aria-haspopup="true" aria-expanded="false"
         aria-controls="js-user-menu js-sidebar" aria-label="Abrir menú">
-        <span class="db-icon db-icon--menu" aria-hidden="true"></span>
-        <span class="db-user-chip__avatar" id="js-user-avatar" aria-hidden="true"></span>
-        <span class="db-user-chip__name" id="js-user-display-name">—</span>
+        <span class="hr-nav__avatar" id="js-user-avatar" aria-hidden="true"></span>
+        <span class="hr-nav__hello" id="js-user-display-name">—</span>
       </button>
       <nav class="db-user-menu" id="js-user-menu" aria-label="Menú de usuario" hidden>
         <ul class="db-user-menu__list" role="list">
@@ -136,23 +137,23 @@ function renderNavActions(module) {
     `;
   }
 
-  if (module === "store") {
-    return `
+  const moduleAction = module === "store" ? `
       <a class="hr-nav__action hr-nav__action--cart" href="/store/cart.html">
         Carrito <span class="cart-count">0</span>
       </a>
-      <a class="hr-nav__action" href="/portal/" data-hr-account>Portal</a>
-    `;
-  }
+    ` : "";
 
-  if (module === "tickets") {
-    return `
-      <span id="session-user" class="hr-nav__user">Verificando sesión…</span>
-      <a class="hr-nav__action" href="/portal/dashboard.html">Portal</a>
-    `;
-  }
-
-  return `<a class="hr-nav__action" href="/portal/" data-hr-account>Portal</a>`;
+  return `
+    ${moduleAction}
+    <div class="hr-nav__session" data-hr-session>
+      <div class="hr-nav__guest">
+        <a href="/portal/">Ingresar</a>
+        <span aria-hidden="true">|</span>
+        <a href="/portal/?mode=register">Registrarse</a>
+      </div>
+    </div>
+    <span id="session-user" class="hr-nav__user" hidden></span>
+  `;
 }
 
 function renderGlobalDrawer(activeModule) {
@@ -172,16 +173,194 @@ function renderGlobalDrawer(activeModule) {
       <nav class="hr-global-drawer__links" aria-label="Navegación móvil">
         ${ECOSYSTEM_LINKS.map(([key, href, label]) => `
           <a href="${href}"${key === activeModule ? ' aria-current="page"' : ""}>
-            <span>${label}</span><span aria-hidden="true">↗</span>
+            <span>${label}</span>
           </a>
         `).join("")}
       </nav>
       <div class="hr-global-drawer__footer">
-        <span>La Casa del Under</span>
-        <a href="/portal/" data-hr-account>Entrar al portal</a>
+        <div data-hr-drawer-session>
+          <div class="hr-global-drawer__guest">
+            <a href="/portal/">Ingresar</a>
+            <a href="/portal/?mode=register">Registrarse</a>
+          </div>
+        </div>
+        <div class="hr-global-drawer__meta">
+          <span class="site-status"></span>
+          <a href="/changelog.html" class="site-version"></a>
+        </div>
       </div>
     </aside>
   `;
+}
+
+function escapeNavText(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function firstName(value, fallback = "Usuario") {
+  return String(value || fallback).trim().split(/\s+/)[0] || fallback;
+}
+
+function authenticatedHeaderMarkup(profile, user, unread = 0, drawer = false) {
+  const name = firstName(profile?.display_name || profile?.username || user?.email?.split("@")[0]);
+  const avatar = String(profile?.avatar_url || "").trim();
+  const avatarSrc = /^https?:\/\//i.test(avatar) ? avatar : "/assets/img/np-negative.png";
+  const avatarMarkup = `<img src="${escapeNavText(avatarSrc)}" alt=""
+    referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/assets/img/np-negative.png'">`;
+
+  if (drawer) {
+    return `
+      <a class="hr-global-drawer__account" href="/portal/dashboard.html">
+        <span class="hr-nav__avatar">${avatarMarkup}</span>
+        <span class="hr-global-drawer__hello">Hola, <strong>${escapeNavText(name)}</strong></span>
+      </a>
+      <a class="hr-global-drawer__portal" href="/portal/dashboard.html">Portal</a>
+    `;
+  }
+
+  return `
+    <button class="hr-nav__notifications" type="button" data-hr-notifications-toggle
+      aria-label="Notificaciones${unread ? `, ${unread} sin leer` : ""}"
+      aria-controls="hr-global-notifications" aria-expanded="false">
+      <span class="db-icon db-icon--bell" aria-hidden="true"></span>
+      <span class="hr-nav__notifications-label">Notificaciones</span>
+      ${unread ? `<span class="hr-nav__notification-count">${unread > 99 ? "99+" : unread}</span>` : ""}
+    </button>
+    <a class="hr-nav__account" href="/portal/dashboard.html">
+      <span class="hr-nav__avatar">${avatarMarkup}</span>
+      <span class="hr-nav__hello">Hola, <strong>${escapeNavText(name)}</strong></span>
+    </a>
+  `;
+}
+
+function globalNotificationTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function renderGlobalNotifications(items) {
+  const panel = document.getElementById("hr-global-notifications");
+  const list = panel?.querySelector("[data-hr-notifications-list]");
+  if (!list) return;
+
+  list.innerHTML = items.length
+    ? items.map((item) => `
+        <li class="hr-global-notifications__item${item.read ? " is-read" : ""}">
+          <span class="hr-global-notifications__dot" aria-hidden="true"></span>
+          <span class="hr-global-notifications__message">${escapeNavText(item.message || "Notificación")}</span>
+          <time>${escapeNavText(globalNotificationTime(item.created_at))}</time>
+        </li>
+      `).join("")
+    : '<li class="hr-global-notifications__empty">Sin notificaciones nuevas.</li>';
+}
+
+function toggleGlobalNotifications(forceOpen) {
+  const panel = document.getElementById("hr-global-notifications");
+  if (!panel) return;
+  const open = typeof forceOpen === "boolean" ? forceOpen : panel.hidden;
+  panel.hidden = !open;
+  document.querySelectorAll("[data-hr-notifications-toggle]").forEach((button) => {
+    button.setAttribute("aria-expanded", String(open));
+  });
+}
+
+function attachGlobalNotificationListeners() {
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-hr-notifications-toggle]");
+    if (toggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (document.body.classList.contains("hr-global-menu-open")) toggleGlobalDrawer(false);
+      toggleGlobalNotifications();
+      return;
+    }
+
+    if (event.target.closest("[data-hr-notifications-close]")) {
+      toggleGlobalNotifications(false);
+      return;
+    }
+
+    const panel = document.getElementById("hr-global-notifications");
+    if (panel && !panel.hidden && !event.target.closest("#hr-global-notifications")) {
+      toggleGlobalNotifications(false);
+    }
+  });
+}
+
+async function hydrateGlobalSession() {
+  if (document.body.classList.contains("db-body")) return;
+  const sessionTargets = document.querySelectorAll("[data-hr-session]");
+  const drawerTargets = document.querySelectorAll("[data-hr-drawer-session]");
+  if (!sessionTargets.length && !drawerTargets.length) return;
+
+  try {
+    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm");
+    const supabase = createClient(HR_SUPABASE_URL, HR_SUPABASE_ANON_KEY);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("user_id,display_name,username,email,avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const notificationTargets = [user.id, profile?.user_id].filter(Boolean).map(String);
+    let notifications = [];
+    if (notificationTargets.length) {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id,message,type,created_at,read,user_id")
+        .in("user_id", notificationTargets)
+        .order("created_at", { ascending: false })
+        .limit(25);
+      notifications = data || [];
+    }
+    const unread = notifications.filter((item) => !item.read).length;
+
+    sessionTargets.forEach((target) => {
+      target.innerHTML = authenticatedHeaderMarkup(profile, user, unread);
+    });
+    drawerTargets.forEach((target) => {
+      target.innerHTML = authenticatedHeaderMarkup(profile, user, unread, true);
+    });
+    renderGlobalNotifications(notifications);
+  } catch (error) {
+    console.info("[HR] No fue posible hidratar la sesión global:", error?.message || error);
+  }
+}
+
+let globalDrawerScrollY = 0;
+
+function lockGlobalDrawerScroll() {
+  globalDrawerScrollY = window.scrollY;
+  document.documentElement.classList.add("hr-scroll-locked");
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${globalDrawerScrollY}px`;
+  document.body.style.right = "0";
+  document.body.style.left = "0";
+  document.body.style.width = "100%";
+}
+
+function unlockGlobalDrawerScroll() {
+  document.documentElement.classList.remove("hr-scroll-locked");
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.right = "";
+  document.body.style.left = "";
+  document.body.style.width = "";
+  window.scrollTo(0, globalDrawerScrollY);
 }
 
 function toggleGlobalDrawer(forceOpen) {
@@ -203,6 +382,9 @@ function toggleGlobalDrawer(forceOpen) {
     "hr-overlay-open",
     open || document.body.classList.contains("hr-portal-menu-open"),
   );
+
+  if (open) lockGlobalDrawerScroll();
+  else if (!document.body.classList.contains("hr-portal-menu-open")) unlockGlobalDrawerScroll();
 
   if (open) drawer.querySelector(".hr-global-drawer__close")?.focus();
   else toggle.focus();
@@ -231,9 +413,10 @@ function renderGlobalNav() {
   const target = document.getElementById("hr-global-nav");
   if (!target) return;
 
+  document.body.classList.add("hr-has-global-nav");
   const module = document.body.dataset.hrContext || "home";
   const accent = module === "media" ? "media" : "brand";
-  const activeModule = module === "tickets" ? "events" : module;
+  const activeModule = module;
   const subnav = renderSubNav(module);
   const actionsClass = document.body.classList.contains("db-body")
     ? "hr-nav__actions db-topbar__actions"
@@ -260,6 +443,19 @@ function renderGlobalNav() {
       ${subnav ? `<nav class="hr-nav__sub" aria-label="Navegación contextual">${subnav}</nav>` : ""}
     </header>
     ${renderGlobalDrawer(activeModule)}
+    <aside class="hr-global-notifications" id="hr-global-notifications"
+      aria-label="Notificaciones" hidden>
+      <header>
+        <div>
+          <span>Cuenta</span>
+          <strong>Notificaciones</strong>
+        </div>
+        <button type="button" data-hr-notifications-close aria-label="Cerrar notificaciones">×</button>
+      </header>
+      <ul data-hr-notifications-list>
+        <li class="hr-global-notifications__empty">Cargando notificaciones…</li>
+      </ul>
+    </aside>
   `;
 
   document.body.classList.toggle("hr-has-subnav", Boolean(subnav));
@@ -310,6 +506,7 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") toggleGlobalNotifications(false);
   if (event.key === "Escape" && document.body.classList.contains("hr-global-menu-open")) {
     toggleGlobalDrawer(false);
   }
@@ -362,6 +559,8 @@ function initGlobalFooter() {
 }
 
 renderGlobalNav();
+attachGlobalNotificationListeners();
+hydrateGlobalSession();
 initGlobalFooter();
 
 document.querySelectorAll(".site-status").forEach(el => {

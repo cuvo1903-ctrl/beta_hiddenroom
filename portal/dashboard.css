@@ -95,8 +95,11 @@
   background: transparent;
   border: var(--border-subtle);
   color: var(--white-dim);
-  width: 36px;
+  width: auto;
+  min-width: 36px;
   height: 36px;
+  padding: 0 9px;
+  gap: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2078,6 +2081,7 @@
   height: 24px;
   background: var(--red-ghost);
   border: 1px solid var(--red-dim);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2093,6 +2097,30 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
+}
+
+.db-user-chip__name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-topbar__notification-label {
+  max-width: 90px;
+  overflow: hidden;
+  font-size: 8px;
+  letter-spacing: .08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .db-topbar__notification-label {
+    display: none;
+  }
 }
 
 /* User dropdown menu */

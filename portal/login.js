@@ -5,7 +5,7 @@ const supabase = createClient(
   "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO"
 );
 
-let registerMode = false;
+let registerMode = new URLSearchParams(window.location.search).get("mode") === "register";
 let passwordResetCooldownUntil = 0;
 let passwordResetCooldownTimer = null;
 let passwordResetBusy = false;

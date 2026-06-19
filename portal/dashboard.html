@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" data-theme="dashboard">
 <head>
   <meta charset="UTF-8" />
@@ -18,9 +18,9 @@
   <link rel="icon" type="image/webp" href="/assets/img/orange_logo.webp" />
 
   <!-- Global design system -->
-  <link rel="stylesheet" href="../styles.css?v=20260618-navaccordion" />
+  <link rel="stylesheet" href="../styles.css?v=20260618-fixedheader" />
   <!-- Dashboard-specific layer (additive only, never overrides tokens) -->
-  <link rel="stylesheet" href="dashboard.css?v=20260616-membership-delivery-status" />
+  <link rel="stylesheet" href="dashboard.css?v=20260618-fixedheader" />
 
   <!-- Typefaces (same stack as global) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -356,10 +356,10 @@
        Load order matters — router last.
   ═══════════════════════════════════════════════════ -->
   <!-- Global behavior (cursor, reveal, etc.) -->
-  <script src="../site.js?v=20260618-navaccordion" defer></script>
+  <script src="../site.js?v=20260618-fixedheader" defer></script>
 
   <!-- Dashboard controller / router -->
-  <script src="dashboard.js?v=20260618-navaccordion" type="module"></script>
+  <script src="dashboard.js?v=20260618-fixedheader" type="module"></script>
 
   <!--
     Cursor hover patch — site.js binds mouseenter/mouseleave with querySelectorAll

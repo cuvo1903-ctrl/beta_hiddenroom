@@ -1335,13 +1335,17 @@ function hydrateTopbar() {
 
   if (!state.user) return;
 
-  if (nameEl)   nameEl.textContent  = state.user.display_name ?? state.user.email ?? '-';
+  const fullName = state.user.display_name ?? state.user.username ?? state.user.email?.split('@')[0] ?? 'Usuario';
+  const shortName = String(fullName).trim().split(/\s+/)[0] || 'Usuario';
+  if (nameEl) nameEl.textContent = `Hola, ${shortName}`;
   if (avatarEl) {
     const avatarUrl = String(state.user.avatar_url ?? '').trim();
-    const fallbackInitial = (state.user.display_name ?? state.user.email ?? '?')[0].toUpperCase();
     const renderFallback = () => {
-      avatarEl.textContent = fallbackInitial;
-      avatarEl.removeAttribute('aria-label');
+      const fallback = document.createElement('img');
+      fallback.src = '/assets/img/np-negative.png';
+      fallback.alt = '';
+      avatarEl.replaceChildren(fallback);
+      avatarEl.setAttribute('aria-label', 'Foto de perfil predeterminada');
     };
 
     avatarEl.textContent = '';
@@ -1474,7 +1478,7 @@ function activePortalGroupKey() {
 
 function renderPortalMoreSheet(openKey = '') {
   const groups = visiblePortalGroups().filter((group) => group.key !== 'system');
-  const expandedKey = openKey || activePortalGroupKey() || groups[0]?.key;
+  const expandedKey = openKey;
   const currentKey = activePortalGroupKey();
 
   return groups.map((group) => `
