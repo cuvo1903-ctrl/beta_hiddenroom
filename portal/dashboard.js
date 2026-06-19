@@ -374,6 +374,88 @@ const SECTIONS = {
   },
 };
 
+const PORTAL_NAV_GROUPS = [
+  {
+    key: 'system',
+    title: 'Sistema',
+    items: [
+      { label: 'Inicio', section: 'overview', icon: 'grid' },
+    ],
+  },
+  {
+    key: 'client',
+    title: 'Cliente',
+    role: 'client',
+    items: [
+      { label: 'Descargas', section: 'client-downloads', icon: 'download' },
+      { label: 'Sesiones', section: 'client-sessions', icon: 'calendar' },
+      { label: 'Transacciones', section: 'client-transactions', icon: 'receipt' },
+      { label: 'Contratos', section: 'client-contracts', icon: 'doc' },
+      { label: 'Membresía', section: 'client-membership', icon: 'star' },
+      { label: 'Tickets', section: 'client-tickets', icon: 'ticket' },
+      { label: 'Tienda', section: 'client-store', icon: 'bag' },
+      { label: 'Premios', section: 'client-rewards', icon: 'star' },
+      { label: 'Minijuegos', action: 'minigames', icon: 'grid' },
+    ],
+  },
+  {
+    key: 'collaborator',
+    title: 'Colaborador',
+    role: 'collaborator',
+    items: [
+      { label: 'Documentos/Contratos', section: 'collab-docs', icon: 'folder' },
+      { label: 'Financiero', section: 'collab-finance', icon: 'receipt' },
+      { label: 'SCRUM / Tareas', section: 'collab-tasks', icon: 'check', permission: 'scrum.view' },
+      { label: 'Actividad', section: 'collab-log', icon: 'activity' },
+      { label: 'Boletera', href: '../tickets/', icon: 'ticket' },
+    ],
+  },
+  {
+    key: 'rrpp',
+    title: 'Embajador / RRPP',
+    role: 'pr',
+    items: [
+      { label: 'Boletos vendidos', section: 'rrpp-contacts', icon: 'users' },
+      { label: 'Invitaciones', section: 'rrpp-invitations', icon: 'mail' },
+      { label: 'Campañas', section: 'rrpp-campaigns', icon: 'broadcast' },
+      { label: 'Lista de invitados', section: 'rrpp-guestlist', icon: 'list' },
+      { label: 'Beneficios', section: 'rrpp-benefits', icon: 'gift' },
+    ],
+  },
+  {
+    key: 'media',
+    title: 'Media',
+    permission: 'media.posts',
+    items: [
+      { label: 'Publicaciones', href: '../media/admin.html?view=posts', icon: 'doc' },
+      { label: 'Crear publicación', href: '../media/admin.html?view=editor', icon: 'activity' },
+      { label: 'Borradores', href: '../media/admin.html?view=drafts', icon: 'folder' },
+    ],
+  },
+  {
+    key: 'erp',
+    title: 'ERP / Operaciones',
+    role: 'admin',
+    items: [
+      { label: 'Finanzas', section: 'erp-finance', icon: 'chart' },
+      { label: 'Operaciones', section: 'erp-ops', icon: 'settings' },
+      { label: 'Permisos', section: 'erp-permissions', icon: 'users' },
+      { label: 'Auth / Registros', section: 'erp-auth-audit', icon: 'activity' },
+      { label: 'Boletera', href: '../tickets/', icon: 'ticket' },
+      { label: 'BB.DD', section: 'admin-table-editor', icon: 'settings' },
+    ],
+  },
+  {
+    key: 'account',
+    title: 'Cuenta',
+    items: [
+      { label: 'Perfil', action: 'profile', icon: 'users' },
+      { label: 'Ajustes', section: 'account-settings', icon: 'settings' },
+      { label: 'Cerrar sesión', action: 'logout', icon: 'settings', danger: true },
+    ],
+  },
+];
+
 const SCRUM_COLUMNS = [
   { key: 'todo', label: 'Todo' },
   { key: 'in_progress', label: 'En progreso' },
@@ -1308,6 +1390,177 @@ function updateSidebarActiveState(activeKey) {
     const isActive = btn.dataset.section === activeKey;
     btn.classList.toggle('db-sidebar__item--active', isActive);
     btn.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
+
+  document.querySelectorAll('.hr-portal-nav-item[data-section]').forEach((btn) => {
+    const isActive = btn.dataset.section === activeKey;
+    btn.classList.toggle('is-active', isActive);
+    btn.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
+
+  const activeGroup = PORTAL_NAV_GROUPS.find((group) =>
+    group.items.some((item) => item.section === activeKey)
+  )?.key;
+  document.querySelectorAll('.hr-portal-bottom-nav [data-portal-group]').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.portalGroup === activeGroup);
+  });
+  document.querySelectorAll('.hr-portal-bottom-nav [data-section]').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.section === activeKey);
+  });
+}
+
+function canShowPortalGroup(group) {
+  if (group.role && !hasRole(group.role)) return false;
+  if (group.permission && !hasPermission(group.permission)) return false;
+  return true;
+}
+
+function canShowPortalItem(item) {
+  if (item.permission && !hasPermission(item.permission)) return false;
+  if (item.section) {
+    const section = SECTIONS[item.section];
+    if (!section) return false;
+    if (section.roleRequired && !hasRole(section.roleRequired)) return false;
+    if (section.permissionRequired && !hasPermission(section.permissionRequired)) return false;
+  }
+  return true;
+}
+
+function visiblePortalGroups() {
+  return PORTAL_NAV_GROUPS
+    .filter(canShowPortalGroup)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(canShowPortalItem),
+    }))
+    .filter((group) => group.items.length);
+}
+
+function renderPortalNavItem(item, className = 'db-sidebar__item') {
+  const icon = `<span class="db-icon db-icon--${escapeHTML(item.icon || 'grid')}" aria-hidden="true"></span>`;
+  const text = `<span class="db-sidebar__item-text">${escapeHTML(item.label)}</span>`;
+  const classes = `${className}${item.danger ? ' db-sidebar__item--danger' : ''}`;
+
+  if (item.href) {
+    return `<a class="${classes}" href="${escapeHTML(item.href)}">${icon}${text}</a>`;
+  }
+
+  const data = item.section
+    ? `data-section="${escapeHTML(item.section)}"`
+    : `data-sidebar-action="${escapeHTML(item.action)}"`;
+  return `<button class="${classes}" type="button" ${data}>${icon}${text}</button>`;
+}
+
+function renderPortalSidebar() {
+  const nav = document.querySelector('#js-sidebar .db-sidebar__nav');
+  if (!nav) return;
+
+  nav.innerHTML = visiblePortalGroups().map((group) => `
+    <ul class="db-sidebar__group${group.key === 'account' ? ' db-sidebar__group--account' : ''}"
+      role="list" data-group="${escapeHTML(group.key)}">
+      <li class="db-sidebar__label" aria-hidden="true">${escapeHTML(group.title)}</li>
+      ${group.items.map((item) => `<li>${renderPortalNavItem(item)}</li>`).join('')}
+    </ul>
+  `).join('');
+}
+
+function renderPortalMoreSheet(filterKey = '') {
+  const groups = visiblePortalGroups().filter((group) => !filterKey || group.key === filterKey);
+  return groups.map((group) => `
+    <section class="hr-portal-drawer__section" data-portal-sheet-group="${escapeHTML(group.key)}">
+      <h3>${escapeHTML(group.title)}</h3>
+      <div class="hr-portal-drawer__list">
+        ${group.items.map((item) => renderPortalNavItem(item, 'hr-portal-nav-item')).join('')}
+      </div>
+    </section>
+  `).join('');
+}
+
+function renderPortalNavigation() {
+  renderPortalSidebar();
+  document.querySelectorAll('.hr-portal-bottom-nav, .hr-portal-backdrop, .hr-portal-drawer')
+    .forEach((node) => node.remove());
+
+  const collaboratorEnabled = visiblePortalGroups().some((group) => group.key === 'collaborator');
+  const erpEnabled = visiblePortalGroups().some((group) => group.key === 'erp');
+  document.body.insertAdjacentHTML('beforeend', `
+    <nav class="hr-portal-bottom-nav" aria-label="Navegación principal del portal">
+      <button type="button" data-section="overview"><span>⌂</span>Inicio</button>
+      <button type="button" data-portal-group="client"><span>◎</span>Cliente</button>
+      <button type="button" data-portal-group="collaborator"${collaboratorEnabled ? '' : ' disabled'}><span>◇</span>Colaborador</button>
+      <button type="button" data-portal-group="erp"${erpEnabled ? '' : ' disabled'}><span>▦</span>ERP</button>
+      <button type="button" data-portal-more aria-controls="hr-portal-more" aria-expanded="false"><span>•••</span>Más</button>
+    </nav>
+    <button class="hr-portal-backdrop" type="button" aria-label="Cerrar menú" hidden></button>
+    <aside class="hr-portal-drawer" id="hr-portal-more" aria-label="Menú del portal" hidden>
+      <header>
+        <div><small>Navegación</small><strong data-portal-sheet-title>Todas las secciones</strong></div>
+        <button type="button" data-portal-sheet-close aria-label="Cerrar menú">×</button>
+      </header>
+      <div class="hr-portal-drawer__content">${renderPortalMoreSheet()}</div>
+    </aside>
+  `);
+}
+
+function togglePortalMoreSheet(forceOpen, filterKey = '') {
+  const sheet = document.getElementById('hr-portal-more');
+  const backdrop = document.querySelector('.hr-portal-backdrop');
+  const moreButton = document.querySelector('[data-portal-more]');
+  if (!sheet || !backdrop || !moreButton) return;
+
+  const open = typeof forceOpen === 'boolean' ? forceOpen : sheet.hidden;
+  if (open) {
+    const group = PORTAL_NAV_GROUPS.find((item) => item.key === filterKey);
+    sheet.querySelector('.hr-portal-drawer__content').innerHTML = renderPortalMoreSheet(filterKey);
+    sheet.querySelector('[data-portal-sheet-title]').textContent = group?.title || 'Todas las secciones';
+  }
+
+  sheet.hidden = !open;
+  backdrop.hidden = !open;
+  moreButton.setAttribute('aria-expanded', String(open && !filterKey));
+  document.body.classList.toggle('hr-portal-menu-open', open);
+  document.body.classList.toggle('hr-overlay-open', open || document.body.classList.contains('hr-global-menu-open'));
+  if (open) sheet.querySelector('[data-portal-sheet-close]')?.focus();
+}
+
+function closePortalMoreSheet() {
+  togglePortalMoreSheet(false);
+}
+
+function attachPortalMobileListeners() {
+  document.querySelector('.hr-portal-bottom-nav')?.addEventListener('click', (event) => {
+    const sectionButton = event.target.closest('[data-section]');
+    if (sectionButton) {
+      navigate(sectionButton.dataset.section);
+      closePortalMoreSheet();
+      return;
+    }
+
+    const groupButton = event.target.closest('[data-portal-group]');
+    if (groupButton && !groupButton.disabled) {
+      togglePortalMoreSheet(true, groupButton.dataset.portalGroup);
+      return;
+    }
+
+    if (event.target.closest('[data-portal-more]')) togglePortalMoreSheet();
+  });
+
+  document.querySelector('.hr-portal-backdrop')?.addEventListener('click', closePortalMoreSheet);
+  document.querySelector('[data-portal-sheet-close]')?.addEventListener('click', closePortalMoreSheet);
+  document.getElementById('hr-portal-more')?.addEventListener('click', (event) => {
+    const sectionItem = event.target.closest('[data-section]');
+    if (sectionItem) navigate(sectionItem.dataset.section);
+
+    const actionItem = event.target.closest('[data-sidebar-action]');
+    if (actionItem) handleNavigationAction(actionItem.dataset.sidebarAction);
+
+    if (event.target.closest('a, button')) closePortalMoreSheet();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.classList.contains('hr-portal-menu-open')) {
+      closePortalMoreSheet();
+    }
   });
 }
 
@@ -7916,11 +8169,13 @@ async function init() {
     permissions: session.permissions,
   });
 
+  renderPortalNavigation();
   hydrateTopbar();
   applyRoleGates();
   syncLocalStorageRecords();
 
   attachSidebarListeners();
+  attachPortalMobileListeners();
   attachNotificationListeners();
   attachUserMenuListeners();
   attachMainDelegation();
