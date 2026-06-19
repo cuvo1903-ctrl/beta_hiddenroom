@@ -1985,7 +1985,7 @@ body[data-hr-chrome] .success-brand {
   .hr-nav__links { display: none; }
   .hr-nav__actions {
     position: static;
-    max-width: min(50vw, 184px);
+    max-width: min(58vw, 220px);
     gap: 6px;
     overflow: hidden;
   }
@@ -1996,9 +1996,12 @@ body[data-hr-chrome] .success-brand {
     display: none;
   }
   .hr-nav__user { display: none; }
-  .hr-nav__guest { font-size: 8px; gap: 5px; }
-  .hr-nav__guest a:last-of-type,
-  .hr-nav__guest span { display: none; }
+  .hr-nav__guest {
+    max-width: 100%;
+    gap: 5px;
+    font-size: 7px;
+    letter-spacing: .08em;
+  }
   .hr-nav__notifications {
     width: 30px;
     min-width: 30px;

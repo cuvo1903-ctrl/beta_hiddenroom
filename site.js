@@ -90,13 +90,7 @@ function renderSubNav(module) {
   }
 
   if (module === "portal") {
-    return [
-      item("/portal/dashboard.html#overview", "Inicio", path.endsWith("/dashboard.html") && (!hash || hash === "overview"), ' data-portal-section="overview"'),
-      item("/portal/dashboard.html#client-membership", "Cliente", hash.startsWith("client-"), ' data-portal-section="client-membership"'),
-      item("/portal/dashboard.html#collab-tasks", "Colaborador", hash.startsWith("collab-"), ' data-portal-section="collab-tasks"'),
-      item("/portal/dashboard.html#erp-ops", "ERP", hash.startsWith("erp-") || hash === "admin-table-editor", ' data-portal-section="erp-ops"'),
-      '<span class="hr-nav__context-title" id="js-topbar-section" aria-live="polite"></span>',
-    ].join("");
+    return "";
   }
 
   if (module === "tickets") {
