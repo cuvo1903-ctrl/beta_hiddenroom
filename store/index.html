@@ -9,39 +9,43 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../styles.css?v=20260618-mobileauth">
-  <link rel="stylesheet" href="store.css">
+  <link rel="stylesheet" href="../styles.css?v=20260620-store-system">
+  <link rel="stylesheet" href="store.css?v=20260620-store-system">
 </head>
-<body data-page="catalog" data-hr-chrome data-hr-context="store">
+<body class="store-page hr-page" data-page="catalog" data-hr-chrome data-hr-context="store">
   <div id="hr-global-nav"></div>
   <main>
-    <section class="store-hero">
-      <p class="eyebrow">Hidden Room Supply</p>
-      <h1>Objetos para<br><span>hacer ruido.</span></h1>
-      <p class="hero-copy">Drops, música y herramientas.</p>
+    <section class="store-hero hr-section">
+      <div class="store-hero__content hr-container hr-stack">
+      <p class="eyebrow hr-eyebrow">Hidden Room Supply</p>
+      <h1 class="hr-title-xl">Objetos para<br><span>hacer ruido.</span></h1>
+      <p class="hero-copy hr-subtitle">Drops, música y herramientas.</p>
+      </div>
     </section>
 
-    <section class="catalog-section" aria-labelledby="catalog-title">
-      <div class="section-heading">
+    <section class="catalog-section hr-section" aria-labelledby="catalog-title">
+      <div class="hr-container hr-stack hr-stack-xl">
+      <div class="section-heading hr-grid hr-grid-2">
         <div>
-          <p class="eyebrow">Catálogo</p>
-          <h2 id="catalog-title">Selección actual</h2>
+          <p class="eyebrow hr-eyebrow">Catálogo</p>
+          <h2 id="catalog-title" class="hr-section-title">Selección actual</h2>
         </div>
         <p>Precios en MXN. El precio final siempre se valida de forma segura antes del pago.</p>
       </div>
-      <div class="catalog-tools">
-        <label>
+      <div class="catalog-tools hr-filterbar">
+        <label class="hr-search">
           <span>Buscar</span>
-          <input id="product-search" type="search" placeholder="Producto, categoría…">
+          <input id="product-search" class="hr-search-input" type="search" placeholder="Producto, categoría…">
         </label>
-        <label>
+        <label class="hr-field">
           <span>Categoría</span>
-          <select id="category-filter">
+          <select id="category-filter" class="hr-select">
             <option value="">Todas las categorías</option>
           </select>
         </label>
       </div>
-      <div id="product-grid" class="product-grid"><p>Cargando productos…</p></div>
+      <div id="product-grid" class="product-grid hr-card-grid"><p class="hr-table-loading">Cargando productos…</p></div>
+      </div>
     </section>
   </main>
 

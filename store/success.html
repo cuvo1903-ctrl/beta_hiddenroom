@@ -8,19 +8,19 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../styles.css?v=20260618-mobileauth">
-  <link rel="stylesheet" href="store.css">
+  <link rel="stylesheet" href="../styles.css?v=20260620-store-system">
+  <link rel="stylesheet" href="store.css?v=20260620-store-system">
 </head>
-<body data-page="success" data-hr-chrome data-hr-context="store">
+<body class="store-page hr-page" data-page="success" data-hr-chrome data-hr-context="store">
   <div id="hr-global-nav"></div>
-  <main class="success-page">
+  <main class="success-page hr-section hr-container hr-stack">
     <a class="brand success-brand" href="../"><img src="../assets/img/white_logo.webp" alt="Hidden Room"></a>
-    <p class="eyebrow">Pago completado</p>
-    <h1>Compra recibida</h1>
+    <p class="eyebrow hr-badge hr-badge-success">Pago completado</p>
+    <h1 class="hr-title-xl">Compra recibida</h1>
     <p>Gracias por apoyar Hidden Room</p>
     <p id="success-detail"></p>
     <div id="success-account-action"></div>
-    <a class="primary-button" href="index.html">Volver a la tienda</a>
+    <a class="primary-button hr-btn hr-btn-primary" href="index.html">Volver a la tienda</a>
   </main>
   <script src="../site.js?v=20260618-mobileauth"></script>
   <script type="module" src="store.js"></script>
