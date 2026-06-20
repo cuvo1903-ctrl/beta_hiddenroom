@@ -1987,8 +1987,9 @@ body[data-hr-chrome] .success-brand {
     position: static;
     max-width: min(58vw, 220px);
     gap: 6px;
-    overflow: hidden;
+    overflow: visible;
   }
+  .hr-nav__action--cart { display: none; }
   .hr-nav__action { min-height: 32px; padding-inline: 9px; }
   .hr-nav__action[data-hr-account],
   .hr-nav[data-module="tickets"] .hr-nav__action,
@@ -2001,6 +2002,8 @@ body[data-hr-chrome] .success-brand {
     gap: 5px;
     font-size: 7px;
     letter-spacing: .08em;
+    overflow: visible;
+    white-space: nowrap;
   }
   .hr-nav__notifications {
     width: 30px;
