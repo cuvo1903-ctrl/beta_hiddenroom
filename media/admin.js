@@ -38,7 +38,7 @@ MEDIA_CATEGORIES.forEach((category) => {
 
 function showToast(message, type = "success") {
   toast.textContent = message;
-  toast.style.borderColor = type === "error" ? "var(--red-dim)" : "var(--teal-dim)";
+  toast.style.borderColor = type === "error" ? "var(--hr-danger-dim)" : "var(--hr-accent-dim)";
   toast.hidden = false;
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => { toast.hidden = true; }, 4200);
@@ -120,18 +120,18 @@ function renderPosts() {
           </div>
         </div>
       </td>
-      <td><span class="status-pill status-pill--${escapeHTML(post.status)}">${statusLabel(post.status)}</span>${post.featured ? '<br><small>Destacado</small>' : ""}</td>
+      <td><span class="status-pill status-pill--${escapeHTML(post.status)} hr-badge ${post.status === "published" ? "hr-badge-success" : post.status === "draft" ? "hr-badge-info" : "hr-badge-muted"}">${statusLabel(post.status)}</span>${post.featured ? '<br><small class="admin-featured hr-badge hr-badge-info">Destacado</small>' : ""}</td>
       <td>${formatDate(post.published_at || post.updated_at)}</td>
       <td>${Number(post.views || 0).toLocaleString("es-MX")}</td>
       <td>
         <div class="admin-row-actions">
-          <a href="?view=editor&id=${encodeURIComponent(post.id)}">Editar</a>
-          ${post.status === "published" ? `<a href="/media/post.html?slug=${encodeURIComponent(post.slug)}" target="_blank" rel="noopener">Ver</a>` : ""}
-          <button type="button" data-action="delete" data-id="${escapeHTML(post.id)}">Eliminar</button>
+          <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?view=editor&id=${encodeURIComponent(post.id)}">Editar</a>
+          ${post.status === "published" ? `<a class="hr-btn hr-btn-ghost hr-btn-sm" href="/media/post.html?slug=${encodeURIComponent(post.slug)}" target="_blank" rel="noopener">Ver</a>` : ""}
+          <button class="hr-btn hr-btn-ghost hr-btn-sm" type="button" data-action="delete" data-id="${escapeHTML(post.id)}">Eliminar</button>
         </div>
       </td>
     </tr>
-  `).join("") : '<tr><td colspan="5">No hay publicaciones con estos filtros.</td></tr>';
+  `).join("") : '<tr><td class="hr-table-empty" colspan="5">No hay publicaciones con estos filtros.</td></tr>';
 }
 
 async function loadPosts(draftsOnly = false) {
