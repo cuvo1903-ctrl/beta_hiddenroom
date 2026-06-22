@@ -18,29 +18,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Unbounded:wght@200;400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../styles.css?v=20260618-mobileauth">
-  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="../styles.css?v=20260621-portal-shell">
+  <link rel="stylesheet" href="login.css?v=20260621-portal-shell">
 </head>
-<body data-hr-chrome data-hr-context="portal">
+<body class="hr-page" data-hr-chrome data-hr-context="portal">
   <div id="hr-global-nav"></div>
 
   <div class="cursor" id="cursor"></div>
   <div class="cursor-ring" id="cursorRing"></div>
 
-  <main class="login-page">
-    <div class="login-card">
+  <main class="login-page hr-section">
+    <div class="login-card hr-card hr-panel">
       <div class="login-logo">
         <img src="../assets/img/white_logo.webp" alt="Hidden Room" class="img-logo">
       </div>
 
-      <p class="login-eyebrow">La Casa del Under</p>
-      <h1 class="login-title">Nueva<br>Contraseña</h1>
+      <p class="login-eyebrow hr-eyebrow">La Casa del Under</p>
+      <h1 class="login-title hr-title">Nueva<br>Contraseña</h1>
 
-      <form class="login-form" id="recovery-form" novalidate>
-        <div class="login-field">
-          <label class="login-label" for="password">Nueva contraseña</label>
+      <form class="login-form hr-stack" id="recovery-form" novalidate>
+        <div class="login-field hr-field">
+          <label class="login-label hr-label" for="password">Nueva contraseña</label>
           <input
-            class="login-input"
+            class="login-input hr-input"
             id="password"
             type="password"
             name="password"
@@ -51,10 +51,10 @@
           >
         </div>
 
-        <div class="login-field">
-          <label class="login-label" for="password_confirm">Confirmar contraseña</label>
+        <div class="login-field hr-field">
+          <label class="login-label hr-label" for="password_confirm">Confirmar contraseña</label>
           <input
-            class="login-input"
+            class="login-input hr-input"
             id="password_confirm"
             type="password"
             name="password_confirm"
@@ -65,9 +65,9 @@
           >
         </div>
 
-        <p class="login-important" id="recovery-status">Valida tu enlace y escribe una nueva contraseña.</p>
+        <p class="login-important hr-help" id="recovery-status">Valida tu enlace y escribe una nueva contraseña.</p>
 
-        <button class="login-submit" type="submit">Guardar contraseña</button>
+        <button class="login-submit hr-btn hr-btn-primary hr-btn-block" type="submit">Guardar contraseña</button>
       </form>
 
       <div class="login-divider">

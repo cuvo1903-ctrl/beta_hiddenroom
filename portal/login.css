@@ -292,3 +292,66 @@
     margin: 0 0 var(--space-lg);
   }
 }
+
+/* Portal access screens — opt-in bridge to the global HR system. */
+.login-page {
+  color: var(--hr-text);
+}
+
+.login-card.hr-card {
+  border-color: var(--hr-border);
+  border-radius: var(--hr-radius-none);
+  background: var(--hr-surface);
+  box-shadow: var(--hr-shadow-lg);
+}
+
+.login-title.hr-title {
+  color: var(--hr-text);
+  font-family: var(--hr-font-display);
+}
+
+.login-form.hr-stack {
+  --hr-stack-gap: var(--hr-space-md);
+}
+
+.login-field,
+.login-field.hr-field {
+  min-width: 0;
+  gap: var(--hr-space-xs);
+}
+
+.login-label,
+.login-label.hr-label {
+  color: var(--hr-muted);
+  font-family: var(--hr-font-mono);
+}
+
+.login-input,
+.login-input.hr-input {
+  min-height: var(--hr-control-height);
+  border: 1px solid var(--hr-border-strong);
+  border-radius: var(--hr-radius-none);
+  background: #090909;
+  color: var(--hr-text);
+  cursor: text;
+}
+
+.login-input:focus,
+.login-input.hr-input:focus-visible {
+  border-color: var(--hr-red);
+  box-shadow: var(--hr-focus-ring);
+}
+
+.login-submit.hr-btn {
+  min-height: var(--hr-control-height-lg);
+  cursor: pointer;
+}
+
+.login-important.hr-help,
+.login-version {
+  color: var(--hr-muted);
+}
+
+.password-toggle {
+  cursor: pointer;
+}
