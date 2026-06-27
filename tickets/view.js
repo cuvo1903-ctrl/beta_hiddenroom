@@ -379,7 +379,7 @@ function preparePrintPages(tickets) {
   const pagesRoot = document.querySelector("[data-print-pages]");
   if (!pagesRoot) return;
 
-  const pageSize = 44;
+  const pageSize = 40;
   const emission = formatDate(new Date().toISOString());
   const pages = [];
   for (let index = 0; index < printableTickets.length; index += pageSize) {
@@ -392,19 +392,26 @@ function preparePrintPages(tickets) {
       const price = Number(ticket?.price);
       return Number.isFinite(price) ? sum + price : sum;
     }, 0);
+    const ticketTypes = [...new Set(pageTickets.map((ticket) => cleanTicketType(ticket.ticket_type)))];
+    const pageTicketType = ticketTypes.length === 1 ? ticketTypes[0] : "VARIOS";
+    const talonText = "TALÓN CORRESPONDIENTE A " + pageTickets.length + " BOLETO" + (pageTickets.length === 1 ? "" : "S") + " DE " + pageTicketType;
+    const responsible = state.user?.email || state.user?.id || "-";
 
     return `
       <section class="ticket-print-page">
         <header class="ticket-print-header">
           <div class="ticket-print-header__brand">
-            <img src="/assets/img/white_logo.webp" alt="">
             <strong>${escapeHTML(eventKey)}</strong>
+            <span>${escapeHTML(talonText)}</span>
           </div>
-          <div>
+          <div class="ticket-print-header__meta">
+            <span>RESPONSABLE</span>
+            <strong>${escapeHTML(responsible)}</strong>
             <span>EMISIÓN</span>
             <strong>${escapeHTML(emission)}</strong>
           </div>
-          <div>
+          <div class="ticket-print-header__total">
+            <img src="/assets/img/black_logo.webp" alt="">
             <span>PAGARÉ POR</span>
             <strong>${escapeHTML(formatMoney(total))}</strong>
           </div>
