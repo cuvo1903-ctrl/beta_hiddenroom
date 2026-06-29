@@ -19,6 +19,7 @@ description: Hidden Room documentation skill for repo docs, setup guides, deploy
 - `README.md`: store/Supabase/Stripe summary.
 - `docs/store-setup.md`: store migration, secrets, functions, webhook, panels.
 - `docs/cloud-agent-installation.md`: Debian agent install and env vars.
+- Debian production topology facts live in `hiddenroom-debian-server/references/server-map.md`; mirror them into docs only when writing an operational runbook.
 - `docs/design-system-status.md`: migration status, risks, quick checks.
 - `docs/index.html`: docs landing page.
 - `changelog.html`: public changelog route.
@@ -33,3 +34,4 @@ description: Hidden Room documentation skill for repo docs, setup guides, deploy
 ## References
 
 Read `references/doc-index.md` before adding a new doc or updating operational instructions.
+

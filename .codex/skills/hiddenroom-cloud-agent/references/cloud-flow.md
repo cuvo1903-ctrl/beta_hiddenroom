@@ -34,3 +34,10 @@ Optional:
 - `CLOUD_JOBS_POLL_INTERVAL_MS`
 - `CLOUD_JOBS_BATCH_SIZE`
 - `CLOUD_JOBS_LOCK_TIMEOUT_MS`
+
+## Live Debian Notes
+
+For the currently discovered production host, read `hiddenroom-debian-server/references/server-map.md` before remote work. The live agent path is `/home/prodxdack/mysauth-agents/cloud-agent/`, and the desired root is `/home/prodxdack/hiddenroom`.
+
+Known issue from diagnostics: the live `.env` used `CLOUD_ROOT`, while `agent.js` expects `CLOUD_HIDDENROOM_ROOT`; the systemd unit also did not declare `EnvironmentFile`. Fix env loading/name alignment before restarting the service.
+

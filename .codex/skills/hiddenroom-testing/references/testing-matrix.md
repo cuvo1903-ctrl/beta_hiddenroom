@@ -27,9 +27,11 @@ Look for overflow, overlapping nav, broken drawers, clipped buttons, unreadable 
 - Media: public list, post detail, admin auth gate, create/edit draft, cover upload.
 - Tickets: event list, generation, folio ranges, QR validation, print/download.
 - Portal: login/register/recovery, section navigation, notifications, profile, membership and ERP tables.
-- Cloud: list, upload via staging, create folder, delete file/folder, pending job handling.
+- Cloud: list, upload via staging, create folder, delete file/folder, pending job handling, and remote service health when approved.
+- Debian Cloud routing: if testing production, use `hiddenroom-debian-server` to verify `cloudflared`, Docker `filebrowser`, `mysauth-cloud-agent`, ports, and route probes without exposing secrets.
 - Kairen: UI loads and Edge Function error states are handled.
 
 ## Remote Dependencies
 
 Stripe, Supabase linked DB, and authenticated role checks may require real credentials and data. State clearly when those could not be exercised.
+

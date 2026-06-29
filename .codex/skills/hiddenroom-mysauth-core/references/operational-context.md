@@ -4,21 +4,20 @@ This file lists project-wide context that must not be invented. If a task requir
 
 ## Ask Before Assuming
 
-- Hidden Room philosophy beyond "La Casa del Under" and Grupo Mysauth affiliation.
-- Business objectives, revenue priorities, or audience strategy.
-- Official roadmap and launch sequence.
+- Business objectives, revenue priorities, or audience strategy beyond `philosophy-strategy.md`.
+- Official roadmap and launch sequence beyond `philosophy-strategy.md`.
 - CRM process: lead sources, lifecycle stages, customer segmentation, support SLA, sales ownership.
 - ERP process: approval rules, settlement cadence, accounting conventions, operational owner.
-- Kairen AI purpose, personality, permitted actions, model/provider policy, escalation rules, or data retention.
+- Kairen AI personality, model/provider policy, escalation rules, data retention, and concrete permissions beyond `philosophy-strategy.md`.
 - AI agents besides the documented cloud agent.
-- Cloudflare configuration: DNS records, cache rules, WAF, Workers, Pages, tunnels, origin rules.
+- Cloudflare configuration details not visible from the Debian host: DNS records beyond the discovered tunnel, concrete cache rules, WAF rules, Workers, Pages, SSL mode, origin rules, and upload-size overrides.
 - GitHub Pages deployment process beyond static hosting and `CNAME`.
-- Debian production host details beyond documented examples.
+- Debian production host details beyond `hiddenroom-debian-server/references/server-map.md` and the role described in `philosophy-strategy.md`.
 - Access-control policy for real team members, collaborators, clients, artists, partners, admins.
 - Store fulfillment policy, refund rules, delivery rules, and product roadmap.
 - Ticketing operations: event check-in process, fraud handling, comp policy, box-office process.
 - Media editorial policy, publishing workflow, approval workflow, content rights.
-- Brand voice rules beyond visible copy and existing CSS/design language.
+- Brand voice rules beyond visible copy, existing CSS/design language, and `philosophy-strategy.md`.
 
 ## How To Ask
 
@@ -38,3 +37,4 @@ When the user provides durable project facts, update this Skill or the relevant 
 - Put project-wide facts here.
 - Put implementation-specific facts in the relevant area Skill.
 - Run `quick_validate.py` after editing Skills.
+

@@ -82,11 +82,16 @@ Known domains:
 - Supabase project URL appears in source as `https://rpcunbkstadgngqrjafp.supabase.co`.
 - Public site URL appears as `https://hiddenroom.mx`.
 - Cloud public URL example: `https://cloud.hiddenroom.mx/files`.
-- Debian/Ubuntu agent root example: `/home/prodxdack/hiddenroom`.
+- Debian production cloud root discovered as `/home/prodxdack/hiddenroom`.
 - Agent install example path: `/opt/mysauth/mysauth-cloud-agent.js`.
+- Live Debian agent path discovered as `/home/prodxdack/mysauth-agents/cloud-agent/agent.js`.
+- Live cloud routing discovered as Cloudflare Tunnel `hiddenroom-cloud` -> `http://localhost:8080` -> Docker `filebrowser/filebrowser` fallback. Nginx was not found in the active path during diagnostics.
+- User-provided business context documents Cloudflare as the entry point for DNS, SSL, protection, cache, security rules, and domain management.
+- User-provided business context documents the Debian server as the self-owned compute layer for agents, automation, scheduled processes, custom APIs, Node.js services, integrations, future workloads outside Supabase, and Cloud.
 
-Cloudflare is mentioned by the user as part of the desired context, but this repo does not document Cloudflare zone, DNS, cache rules, tunnel, WAF, workers, or deployment process. Ask before assuming.
+Use `hiddenroom-debian-server` for current live host details. Ask before assuming Cloudflare zone settings not visible from the Debian host, such as dashboard SSL mode, DNS records outside the tunnel, cache rules, WAF rules, Workers, or upload-size overrides.
 
 ## Existing Skills
 
 The project has area Skills under `.codex/skills`. Use them for implementation-specific guidance after this core Skill orients the task.
+

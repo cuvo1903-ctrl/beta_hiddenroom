@@ -70,6 +70,25 @@ Update:
 - `hiddenroom-documentation` if deploy/secrets/setup steps changed.
 - `hiddenroom-erp`, `hiddenroom-cloud-agent`, or module Skills when the affected domain is specific.
 
+
+## Debian Server
+
+Changed facts or files:
+
+- Tailscale SSH target, Debian hostname, or production user.
+- Cloudflare Tunnel/cloudflared routing for `cloud.hiddenroom.mx`.
+- Docker File Browser fallback, ports, volumes, or root path.
+- `mysauth-cloud-agent.service`, live agent path, env loading, or systemd behavior.
+- Production service diagnostics, ports, logs, or safe command lists.
+
+Update:
+
+- `hiddenroom-debian-server`
+- `hiddenroom-cloud-agent` when cloud file processing changes.
+- `hiddenroom-security` when exposure, secrets, routing, or path boundaries change.
+- `hiddenroom-documentation` when runbooks or install docs must mirror production facts.
+- `hiddenroom-testing` when remote smoke checks or service-health QA changes.
+
 ## Cloud Agent
 
 Changed files:

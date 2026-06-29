@@ -12,6 +12,7 @@ Use this file after core orientation to pick the implementation Skill.
 - Database, RLS, migrations, Edge Functions: `hiddenroom-supabase`.
 - Event finance, memberships, sessions, operational tables: `hiddenroom-erp`.
 - Cloud file manager, Debian agent, `cloud_jobs`: `hiddenroom-cloud-agent`.
+- Debian host, Tailscale SSH, cloudflared tunnel, Docker File Browser fallback, services, ports, logs: `hiddenroom-debian-server`.
 - Auth, secrets, RLS, XSS, Stripe, path traversal: `hiddenroom-security`.
 - Setup docs, runbooks, changelog: `hiddenroom-documentation`.
 - Asset weight, query cost, runtime performance: `hiddenroom-performance`.
@@ -31,3 +32,4 @@ For security-sensitive implementation:
 1. Start with the area Skill.
 2. Also use `hiddenroom-security`.
 3. Verify with `hiddenroom-testing`.
+

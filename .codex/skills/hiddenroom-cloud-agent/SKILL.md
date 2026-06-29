@@ -19,7 +19,7 @@ description: "Hidden Room Cloud Agent skill for the cloud file manager architect
 - Dashboard UI: cloud helpers in `portal/dashboard.js`.
 - Edge Functions: `cloud-list`, `cloud-upload`, `cloud-folder`, `cloud-delete`.
 - Queue: `public.cloud_jobs`.
-- Agent: `mysauth-cloud-agent.js`.
+- Agent: `mysauth-cloud-agent.js` in repo docs/templates; live Debian install currently lives under `/home/prodxdack/mysauth-agents/cloud-agent/`.
 - Service template: `mysauth-cloud-agent.service`.
 - Docs: `docs/cloud-agent-installation.md`.
 
@@ -34,3 +34,5 @@ description: "Hidden Room Cloud Agent skill for the cloud file manager architect
 ## References
 
 Read `references/cloud-flow.md` before modifying any cloud function or the agent.
+Use `hiddenroom-debian-server` before inspecting or changing the live Debian host, Cloudflare Tunnel, Docker File Browser fallback, or systemd service.
+

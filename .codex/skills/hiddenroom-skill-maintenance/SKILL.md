@@ -35,6 +35,7 @@ foreach ($skill in $skills) {
 - `hiddenroom-supabase`
 - `hiddenroom-erp`
 - `hiddenroom-cloud-agent`
+- `hiddenroom-debian-server`
 - `hiddenroom-security`
 - `hiddenroom-documentation`
 - `hiddenroom-performance`
@@ -53,3 +54,4 @@ foreach ($skill in $skills) {
 ## References
 
 Read `references/impact-matrix.md` when deciding which Skills must change after a repo or architecture update.
+
