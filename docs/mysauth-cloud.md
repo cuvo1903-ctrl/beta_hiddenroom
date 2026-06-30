@@ -98,6 +98,14 @@ Endpoints publicos controlados en MysAuth Cloud:
 
 El endpoint publico solo expone formatos de audio (`mp3`, `wav`, `m4a`, `ogg`, `flac`, `aac`) y valida root containment/symlinks contra `beats_store`.
 
+
+## Server status admin
+
+El panel `ERP > Servidor Mysauth` consume `GET /api/server-status` en MysAuth Cloud con `Authorization: Bearer <supabase access token>`.
+
+- Solo admin puede leerlo.
+- Devuelve estado online, hostname, IP Tailscale, uptime, CPU, RAM, disco y temperatura si el host expone sensor.
+- El frontend conserva muestras recientes en memoria para dibujar graficas de rendimiento durante la sesion.
 ## Validacion rapida
 
 ```bash

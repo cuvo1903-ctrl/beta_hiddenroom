@@ -63,6 +63,7 @@ const TRANSACTION_CONCEPT_OPTIONS = [
 const CLOUD_HIDDENROOM_URL = 'https://cloud.hiddenroom.mx/';
 const CLOUD_FUNCTION_BASE = `${SUPABASE_URL}/functions/v1`;
 const CLOUD_STAGING_BUCKET = 'cloud-staging';
+const BEAT_STORE_CLOUD_PATH = '/beats_store';
 
 function normalizeCloudPath(path) {
   if (!path || path === '/') return '/';
@@ -160,12 +161,16 @@ async function listCloudFiles(path = state.erpCloud.currentPath) {
   return { path: currentPath, folders: [], files: [] };
 }
 
-async function uploadCloudFile(file) {
-  if (!file) return;
-  const currentPath = normalizeCloudPath(state.erpCloud.currentPath);
+async function uploadCloudFile(file, targetPath = state.erpCloud.currentPath) {
+  return uploadCloudFileToPath(file, targetPath);
+}
+
+async function uploadCloudFileToPath(file, targetPath = '/') {
+  if (!file) return null;
+  const currentPath = normalizeCloudPath(targetPath);
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
-    throw new Error('Sesión de Supabase no disponible');
+    throw new Error('Sesion de Supabase no disponible');
   }
 
   const storagePath = buildCloudStagingPath(user.id, file.name);
@@ -200,27 +205,67 @@ async function uploadCloudFile(file) {
     throw new Error(error?.error || `No se pudo subir el archivo (${response.status})`);
   }
 
-  return response.json();
+  const payload = await response.json().catch(() => ({}));
+  return {
+    ...payload,
+    targetPath: currentPath,
+    fileName: file.name,
+    url: cloudUploadResultUrl(payload) || buildCloudFileFallbackUrl(currentPath, file.name),
+  };
 }
 
-async function createCloudFolder(folderName) {
-  if (!folderName) return;
-  const currentPath = normalizeCloudPath(state.erpCloud.currentPath);
+async function createCloudFolder(folderName, basePath = state.erpCloud.currentPath) {
+  return createCloudFolderAt(basePath, folderName);
+}
+
+async function createCloudFolderAt(basePath, folderName) {
+  if (!folderName) return null;
   const response = await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/cloud-folder`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      path: currentPath,
+      path: normalizeCloudPath(basePath),
       folderName: folderName.trim(),
     }),
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new Error(error?.error || `No se pudo crear la carpeta (${response.status})`);
+    const message = error?.error || `No se pudo crear la carpeta (${response.status})`;
+    if (response.status === 409 || /exist|existe|already/i.test(message)) return { ok: true, existed: true };
+    throw new Error(message);
   }
 
   return response.json();
+}
+
+async function ensureCloudFolderPath(path) {
+  const normalized = normalizeCloudPath(path);
+  if (normalized === '/') return;
+  const segments = normalized.slice(1).split('/').filter(Boolean);
+  let current = '/';
+  for (const segment of segments) {
+    await createCloudFolderAt(current, segment);
+    current = normalizeCloudPath(current === '/' ? `/${segment}` : `${current}/${segment}`);
+  }
+}
+
+function cloudUploadResultUrl(payload) {
+  return payload?.url
+    || payload?.public_url
+    || payload?.publicUrl
+    || payload?.file_url
+    || payload?.fileUrl
+    || payload?.result?.url
+    || payload?.result?.public_url
+    || payload?.result?.publicUrl
+    || null;
+}
+
+function buildCloudFileFallbackUrl(path, fileName) {
+  const safePath = normalizeCloudPath(path);
+  const fullPath = safePath === '/' ? `/${fileName}` : `${safePath}/${fileName}`;
+  return `${CLOUD_HIDDENROOM_URL.replace(/\/$/, '')}${fullPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 async function deleteCloudFile(itemType, itemName) {
@@ -3205,28 +3250,35 @@ async function renderErpInfrastructure() {
   }
 
   const statusLabel = serverStatus?.online ? 'Online' : 'Offline';
-  const uptime = serverStatus?.uptime ?? 'Desconocido';
-  const cpu = serverStatus?.cpu ?? 'No disponible';
-  const ram = serverStatus?.ram ?? 'No disponible';
-  const disk = serverStatus?.disk ?? 'No disponible';
-  const temperature = serverStatus?.temperature ?? 'No disponible';
   const hostname = serverStatus?.hostname ?? 'No disponible';
   const tailscaleIp = serverStatus?.tailscaleIp ?? 'No disponible';
+  const uptime = serverStatus?.uptime ?? 'Desconocido';
+  const platform = serverStatus?.platform ?? 'No disponible';
+  const checkedAt = serverStatus?.checkedAt ? formatDateTime(serverStatus.checkedAt) : 'No disponible';
+  const cpuPercent = numberOrNull(serverStatus?.cpuPercent);
+  const ramPercent = numberOrNull(serverStatus?.memory?.percent ?? serverStatus?.memoryPercent);
+  const diskPercent = numberOrNull(serverStatus?.diskUsage?.percent ?? serverStatus?.diskPercent);
+  const tempC = numberOrNull(serverStatus?.temperatureCelsius);
+  const samples = serverStatus?.samples ?? [];
 
   return sectionShell('ERP', 'Servidor Mysauth', 'title-erp-infrastructure', `
-    <p class="db-section__summary">Estado de infraestructura. Los datos se obtienen desde <code>/api/server-status</code> en el servidor, sin exponer credenciales en el frontend.</p>
+    <p class="db-section__summary">Estado real del Debian de MysAuth Cloud. Las metricas se leen desde <code>cloud.hiddenroom.mx/api/server-status</code> con sesion admin; no hay SSH ni secretos en el navegador.</p>
     ${errorMessage ? `<p class="db-empty db-empty--error">${escapeHTML(errorMessage)}</p>` : ''}
     <div class="db-grid db-grid--3col db-grid--server-status">
       ${renderServerStatusCard('Estado', statusLabel)}
       ${renderServerStatusCard('Hostname', hostname)}
       ${renderServerStatusCard('IP Tailscale', tailscaleIp)}
       ${renderServerStatusCard('Uptime', uptime)}
-      ${renderServerStatusCard('CPU', cpu)}
-      ${renderServerStatusCard('RAM', ram)}
-      ${renderServerStatusCard('Disco', disk)}
-      ${renderServerStatusCard('Temperatura', temperature)}
+      ${renderServerStatusCard('Sistema', platform)}
+      ${renderServerStatusCard('Ultima lectura', checkedAt)}
     </div>
-    <p class="db-note">Esta vista solo es visible para administradores. No hay acceso SSH directo desde el navegador.</p>
+    <div class="db-server-metrics" aria-label="Graficas de rendimiento del servidor">
+      ${renderServerMetricCard('CPU', serverStatus?.cpu ?? percentDisplay(cpuPercent), cpuPercent, samples.map((sample) => sample.cpu), '%', { chart: 'pie' })}
+      ${renderServerMetricCard('RAM', serverStatus?.ram ?? percentDisplay(ramPercent), ramPercent, samples.map((sample) => sample.ram), '%', { chart: 'pie' })}
+      ${renderServerMetricCard('Disco', serverStatus?.disk ?? percentDisplay(diskPercent), diskPercent, samples.map((sample) => sample.disk), '%', { chart: 'pie' })}
+      ${renderServerMetricCard('Temperatura', serverStatus?.temperature ?? 'Sin sensor', tempC, samples.map((sample) => sample.temperature), 'C', { max: 100, chart: 'line' })}
+    </div>
+    <p class="db-note">Esta vista solo es visible para administradores. El historial de graficas se conserva durante la sesion del navegador.</p>
   `);
 }
 
@@ -3319,6 +3371,10 @@ async function renderErpOps() {
     download: {
       label: 'Descarga',
       html: renderDownloadOpsForm(memberships),
+    },
+    beatSale: {
+      label: 'Beat a la venta',
+      html: renderBeatSaleOpsForm(),
     },
     contract: {
       label: 'Contrato',
@@ -3445,6 +3501,7 @@ async function renderErpOps() {
             ['transaction', 'Finanzas'],
             ['session', 'Sesion'],
             ['download', 'Descarga'],
+            ['beatSale', 'Beat a la venta'],
             ['contract', 'Contrato'],
             ['user', 'Usuario'],
             ['event', 'Evento'],
@@ -3535,7 +3592,19 @@ function renderDownloadOpsForm(memberships = []) {
         </label>
       </div>
       <label class="db-field"><span>Nombre</span><input name="name" required /></label>
-      <label class="db-field"><span>Ruta storage</span><input name="storage_path" required /></label>
+      <label class="db-field">
+        <span>Origen</span>
+        <select name="source_type" data-download-source-type>
+          <option value="link">Subir link</option>
+          <option value="file">Subir archivo a Cloud</option>
+        </select>
+      </label>
+      <label class="db-field" data-download-link-field><span>Ruta / link</span><input name="storage_path" data-download-storage-path required /></label>
+      <label class="db-field" data-download-file-field hidden>
+        <span>Archivo</span>
+        <input name="download_file" type="file" data-download-file />
+        <small class="db-field__hint">Se guardara en la carpeta downloads del usuario seleccionado.</small>
+      </label>
       <label class="db-field"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
       ${renderOperationCreateActions('CREAR')}
     </form>
@@ -3613,6 +3682,28 @@ function renderMembershipOpsForm(memberships = []) {
           </form>
       </section>
     </div>
+  `;
+}
+
+function renderBeatSaleOpsForm() {
+  return `
+    <form class="db-form" data-form="beat-sale-create">
+      <div class="db-form__row">
+        <label class="db-field"><span>Nombre del beat</span><input name="name" required /></label>
+        <label class="db-field"><span>Slug</span><input name="slug" placeholder="se genera si lo dejas vacio" /></label>
+      </div>
+      <div class="db-form__row">
+        <label class="db-field"><span>Precio MXN</span><input name="price" type="number" min="0" step="0.01" required /></label>
+        <label class="db-field"><span>Stock</span><input name="stock" type="number" min="0" step="1" placeholder="vacio = ilimitado" /></label>
+      </div>
+      <label class="db-field"><span>Archivo de audio</span><input name="beat_file" type="file" accept="audio/*" required /></label>
+      <label class="db-field"><span>Descripcion</span><textarea name="description" rows="3" placeholder="Licencia, mood, BPM o notas"></textarea></label>
+      <div class="db-form__row">
+        <label class="db-check"><input name="featured" type="checkbox" /> <span>Featured</span></label>
+        <label class="db-check"><input name="is_active" type="checkbox" checked /> <span>Activo en tienda</span></label>
+      </div>
+      <button class="btn-primary" type="submit">Subir beat y publicar</button>
+    </form>
   `;
 }
 
@@ -5121,10 +5212,24 @@ function updateTransactionConceptFields(form) {
 function updateDownloadMembershipFields(form) {
   if (!form || form.dataset.form !== 'download-create') return;
   const releaseMode = form.querySelector('[data-download-release-mode]')?.value || 'immediate';
+  const sourceType = form.querySelector('[data-download-source-type]')?.value || 'link';
+  const linkField = form.querySelector('[data-download-link-field]');
+  const fileField = form.querySelector('[data-download-file-field]');
+  const storageInput = form.querySelector('[data-download-storage-path]');
+  const fileInput = form.querySelector('[data-download-file]');
   const membershipFields = form.querySelector('[data-download-membership-fields]');
   const membershipInput = form.querySelector('[data-download-membership-id]');
   const cycleInput = form.querySelector('[data-download-cycle-number]');
   const linked = releaseMode === 'membership_delivery';
+  const fileMode = sourceType === 'file';
+
+  if (linkField) linkField.hidden = fileMode;
+  if (fileField) fileField.hidden = !fileMode;
+  if (storageInput) {
+    storageInput.required = !fileMode;
+    if (fileMode) storageInput.value = '';
+  }
+  if (fileInput) fileInput.required = fileMode;
 
   if (membershipFields) membershipFields.hidden = !linked;
   if (membershipInput) {
@@ -5140,6 +5245,69 @@ function updateDownloadMembershipFields(form) {
     const userId = form.querySelector('.db-user-picker input[type="hidden"][name="user_id"]')?.value || '';
     updateDownloadMembershipOptions(form, userId);
   }
+}
+
+function getUserDownloadCloudPath(userId) {
+  const user = (state.data.users ?? []).find((item) => String(item.user_id) === String(userId));
+  const slugSource = user?.username || user?.display_name || user?.email || userId;
+  return `/users/${sanitizeCloudSegment(userId)}__${sanitizeCloudSegment(slugSource)}/downloads`;
+}
+
+function sanitizeCloudSegment(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'user';
+}
+
+function slugifyStoreValue(value) {
+  return sanitizeCloudSegment(value).replace(/_+/g, '-');
+}
+
+function fileBaseName(fileName) {
+  return String(fileName || '').replace(/\.[^.]+$/, '');
+}
+
+async function handleBeatSaleCreate(form, values) {
+  const file = form.querySelector('input[name="beat_file"]')?.files?.[0];
+  if (!file) {
+    showToast('Selecciona un archivo de audio.', 'error');
+    return;
+  }
+  if (!String(file.type || '').startsWith('audio/')) {
+    showToast('El archivo debe ser audio.', 'error');
+    return;
+  }
+
+  const name = String(values.name || fileBaseName(file.name) || 'Beat').trim();
+  const slug = slugifyStoreValue(values.slug || fileBaseName(file.name) || name);
+  const price = Number(values.price || 0);
+  if (!name || !slug || !Number.isFinite(price) || price < 0) {
+    showToast('Nombre, slug o precio invalido.', 'error');
+    return;
+  }
+
+  await ensureCloudFolderPath(BEAT_STORE_CLOUD_PATH);
+  const upload = await uploadCloudFileToPath(file, BEAT_STORE_CLOUD_PATH);
+  const payload = {
+    slug,
+    name,
+    description: String(values.description || '').trim() || null,
+    category: 'beats',
+    price,
+    currency: 'MXN',
+    file_url: upload?.url || buildCloudFileFallbackUrl(BEAT_STORE_CLOUD_PATH, file.name),
+    stock: values.stock !== null && values.stock !== undefined && values.stock !== '' ? Number(values.stock) : null,
+    is_digital: true,
+    is_active: values.is_active === 'on',
+    featured: values.featured === 'on',
+  };
+
+  const result = await insertRow('store_products', payload, 'Beat publicado en tienda.');
+  if (result.ok) form.reset();
 }
 
 function updateDownloadMembershipOptions(form, userId = '') {
@@ -5929,9 +6097,98 @@ function renderServerStatusCard(label, value) {
   `;
 }
 
+function renderServerMetricCard(label, valueLabel, value, history, unit = '%', options = {}) {
+  const numeric = numberOrNull(value);
+  const max = Number(options.max || 100);
+  const percent = numeric === null ? null : Math.max(0, Math.min(100, (numeric / max) * 100));
+  const tone = metricTone(label, numeric);
+  const chart = options.chart === 'line'
+    ? renderServerSparkline(history, unit, max)
+    : renderServerPieChart(percent, label, tone);
+  return `
+    <article class="db-card db-card--server-metric db-card--server-metric-${tone}">
+      <div class="db-card__inner">
+        <div class="db-server-metric__head">
+          <span class="section-label">${escapeHTML(label)}</span>
+          <strong>${escapeHTML(valueLabel ?? '-')}</strong>
+        </div>
+        ${chart}
+      </div>
+    </article>
+  `;
+}
+
+function renderServerPieChart(percent, label, tone) {
+  const value = percent === null ? 0 : Number(percent.toFixed(1));
+  const angle = Math.max(0, Math.min(360, value * 3.6));
+  const display = percent === null ? 'Sin dato' : `${Math.round(value)}%`;
+  return `
+    <div class="db-server-pie db-server-pie--${escapeAttr(tone)}" style="--server-pie-angle:${escapeAttr(`${angle.toFixed(1)}deg`)};" aria-label="${escapeAttr(`${label}: ${display}`)}">
+      <span>${escapeHTML(display)}</span>
+    </div>
+  `;
+}
+
+function renderServerSparkline(history, unit = '%', max = 100) {
+  const values = (history ?? []).map(numberOrNull).filter((value) => value !== null).slice(-30);
+  if (values.length < 2) return '<div class="db-server-sparkline db-server-sparkline--empty">Esperando mas muestras</div>';
+  const width = 120;
+  const height = 34;
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+    const normalized = Math.max(0, Math.min(1, value / max));
+    const y = height - normalized * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const latest = values[values.length - 1];
+  const latestLabel = unit === 'C' ? `${latest.toFixed(1)} C` : `${Math.round(latest)}%`;
+  return `
+    <div class="db-server-sparkline" aria-label="Historial: ${escapeAttr(latestLabel)}">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+        <polyline points="${points}" />
+      </svg>
+      <span>${escapeHTML(latestLabel)}</span>
+    </div>
+  `;
+}
+
+function metricTone(label, value) {
+  if (value === null) return 'neutral';
+  if (label === 'Temperatura') {
+    if (value >= 80) return 'danger';
+    if (value >= 65) return 'warning';
+    return 'ok';
+  }
+  if (value >= 90) return 'danger';
+  if (value >= 75) return 'warning';
+  return 'ok';
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function percentDisplay(value) {
+  return value === null ? 'No disponible' : `${Math.round(value)}%`;
+}
+
+function appendServerStatusSample(serverStatus) {
+  const sample = {
+    at: Date.now(),
+    cpu: numberOrNull(serverStatus.cpuPercent),
+    ram: numberOrNull(serverStatus.memory?.percent ?? serverStatus.memoryPercent),
+    disk: numberOrNull(serverStatus.diskUsage?.percent ?? serverStatus.diskPercent),
+    temperature: numberOrNull(serverStatus.temperatureCelsius),
+  };
+  const samples = Array.isArray(state.data.serverStatusSamples) ? state.data.serverStatusSamples : [];
+  state.data.serverStatusSamples = [...samples, sample].filter((item) => Date.now() - item.at < 30 * 60 * 1000).slice(-30);
+  return state.data.serverStatusSamples;
+}
+
 async function fetchServerStatus() {
   const cache = state.data.serverStatus;
-  const cacheAgeMs = 30_000;
+  const cacheAgeMs = 10_000;
   if (cache && Date.now() - cache.fetchedAt < cacheAgeMs) {
     return cache;
   }
@@ -5939,10 +6196,11 @@ async function fetchServerStatus() {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
   if (!token) {
-    throw new Error('Sesión de Supabase no disponible');
+    throw new Error('Sesion de Supabase no disponible');
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/server-status`, {
+  const statusUrl = `${CLOUD_HIDDENROOM_URL.replace(/\/$/, '')}/api/server-status`;
+  const response = await fetch(statusUrl, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -5950,13 +6208,12 @@ async function fetchServerStatus() {
     },
   });
 
+  const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`No se pudo obtener el estado del servidor (${response.status})`);
+    throw new Error(payload?.error || `No se pudo obtener el estado del servidor (${response.status})`);
   }
-
-  const payload = await response.json();
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Respuesta inválida de estado de servidor');
+    throw new Error('Respuesta invalida de estado de servidor');
   }
 
   const serverStatus = {
@@ -5964,12 +6221,22 @@ async function fetchServerStatus() {
     hostname: payload.hostname ?? payload.host ?? null,
     tailscaleIp: payload.tailscale_ip ?? payload.tailscaleIp ?? payload.tailscale ?? null,
     uptime: payload.uptime ?? payload.uptime_human ?? null,
+    uptimeSeconds: payload.uptimeSeconds ?? payload.uptime_seconds ?? null,
+    platform: payload.platform ?? null,
+    checkedAt: payload.checkedAt ?? payload.checked_at ?? new Date().toISOString(),
     cpu: payload.cpu ?? payload.cpu_status ?? null,
-    ram: payload.ram ?? payload.memory ?? null,
+    cpuPercent: payload.cpuPercent ?? payload.cpu_percent ?? null,
+    loadAverage: payload.loadAverage ?? payload.load_average ?? null,
+    cores: payload.cores ?? null,
+    ram: payload.ram ?? payload.memory_label ?? null,
+    memory: payload.memory ?? null,
     disk: payload.disk ?? payload.storage ?? null,
+    diskUsage: payload.diskUsage ?? payload.disk_usage ?? null,
     temperature: payload.temperature ?? payload.temp ?? null,
+    temperatureCelsius: payload.temperatureCelsius ?? payload.temperature_celsius ?? null,
     fetchedAt: Date.now(),
   };
+  serverStatus.samples = appendServerStatusSample(serverStatus);
 
   state.data.serverStatus = serverStatus;
   return serverStatus;
@@ -6166,7 +6433,24 @@ async function handleTaskDelete(taskId) {
   navigate('collab-tasks');
 }
 
-async function prepareDownloadValues(values) {
+async function prepareDownloadValues(form, values) {
+  const sourceType = String(values.source_type || 'link');
+  if (sourceType === 'file') {
+    const file = form.querySelector('[data-download-file]')?.files?.[0];
+    if (!file) {
+      showToast('Selecciona un archivo para subir a Cloud.', 'error');
+      return false;
+    }
+    const userId = String(values.user_id ?? '').trim();
+    if (!userId) {
+      showToast('Selecciona un usuario valido.', 'error');
+      return false;
+    }
+    const targetRoot = getUserDownloadCloudPath(userId);
+    await ensureCloudFolderPath(targetRoot);
+    const upload = await uploadCloudFileToPath(file, targetRoot);
+    values.storage_path = upload?.url || buildCloudFileFallbackUrl(targetRoot, file.name);
+  }
   const releaseMode = String(values.release_mode || 'immediate');
   values.release_mode = releaseMode === 'membership_delivery' ? 'membership_delivery' : 'immediate';
 
@@ -6263,8 +6547,13 @@ async function handleErpForm(form) {
   }
 
   if (type === 'download-create') {
-    const prepared = await prepareDownloadValues(values);
+    const prepared = await prepareDownloadValues(form, values);
     if (!prepared) return;
+  }
+
+  if (type === 'beat-sale-create') {
+    await handleBeatSaleCreate(form, values);
+    return;
   }
 
   if ('user_id' in values && !values.user_id) {
@@ -6335,12 +6624,17 @@ async function handleErpForm(form) {
   if (type === 'download-create' || type === 'contract-create') {
     delete operationPayload.username;
   }
+  if (type === 'download-create') {
+    delete operationPayload.source_type;
+    delete operationPayload.download_file;
+  }
 
   const map = {
     'transaction-create': ['transactions', withTargetUsername(operationPayload), 'Transaccion creada.'],
     'session-create': ['sessions', withTargetUsername(operationPayload), 'Sesion creada.'],
     'membership-create': ['memberships', withTargetUsername(operationPayload), 'Membresía creada.'],
     'download-create': ['downloads', operationPayload, 'Descarga creada.'],
+    'beat-sale-create': ['store_products', operationPayload, 'Beat publicado.'],
     'contract-create': ['contracts', operationPayload, 'Contrato creado.'],
     'event-create': ['events', operationPayload, 'Evento creado.'],
     'finance-entity-create': ['finance_entities', operationPayload, 'Entidad financiera creada.'],
@@ -8377,7 +8671,7 @@ function attachMainDelegation() {
       return;
     }
 
-    const downloadReleaseMode = e.target.closest('[data-download-release-mode]');
+    const downloadReleaseMode = e.target.closest('[data-download-release-mode], [data-download-source-type]');
     if (downloadReleaseMode) {
       updateDownloadMembershipFields(downloadReleaseMode.closest('form'));
       return;
